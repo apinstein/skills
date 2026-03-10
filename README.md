@@ -18,6 +18,7 @@ cp -r skills/<skill-name> /path/to/your/project/.agent/skills/
 ### Via npx (Ai-Agent-Skills)
 ```bash
 npx ai-agent-skills install apinstein/skills
+npx ai-agent-skills install apinstein/skills/pr-address-feedback # specific skil
 ```
 
 ## Structure
