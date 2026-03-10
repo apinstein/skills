@@ -1,0 +1,249 @@
+#!/usr/bin/env python3
+import json
+import os
+import subprocess
+import sys
+import re
+import shutil
+from datetime import datetime
+
+# --- Configuration ---
+AGENT_NAME = os.environ.get("AGENT_NAME", "AI Agent")
+AI_SIGNATURE = f"<!-- Sent from {AGENT_NAME} -->"
+AI_PREFIX = "[AI]"
+
+def run_gh(args):
+    """Run a gh CLI command and return JSON output."""
+    cmd = ["gh"] + args
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        print(f"Error running gh {' '.join(args)}: {result.stderr}", file=sys.stderr)
+        sys.exit(1)
+    return result.stdout.strip()
+
+def get_repo_info():
+    """Get owner and repo name."""
+    try:
+        out = run_gh(["repo", "view", "--json", "owner,name"])
+        data = json.loads(out)
+        return data['owner']['login'], data['name']
+    except Exception:
+        print("Error getting repo info.", file=sys.stderr)
+        sys.exit(1)
+
+def get_current_pr():
+    """Get the current PR details."""
+    try:
+        out = run_gh(["pr", "view", "--json", "number,url,author"])
+        return json.loads(out)
+    except Exception:
+        return None
+
+def fetch_comments(owner, repo, pr_number):
+    """Fetch all review and issue comments."""
+    # 1. Fetch Review Bodies (Reviewable initial comments often reside here)
+    # Use --paginate and --jq .[] to stream objects
+    out_reviews = run_gh(["api", "--paginate", f"repos/{owner}/{repo}/pulls/{pr_number}/reviews", "--jq", ".[]"])
+    reviews = [json.loads(line) for line in out_reviews.splitlines() if line.strip()]
+
+    # 2. Fetch Issue Comments (Reviewable replies reside here)
+    out_comments = run_gh(["api", "--paginate", f"repos/{owner}/{repo}/issues/{pr_number}/comments", "--jq", ".[]"])
+    comments = [json.loads(line) for line in out_comments.splitlines() if line.strip()]
+
+    all_items = []
+
+    # Process Reviews
+    for r in reviews:
+        all_items.append({
+            'id': r['id'],
+            'body': r['body'],
+            'user': r['user']['login'],
+            'created_at': r.get('submitted_at') or "",
+            'type': 'review'
+        })
+
+    # Process Issue Comments
+    for c in comments:
+        all_items.append({
+            'id': c['id'],
+            'body': c['body'],
+            'user': c['user']['login'],
+            'created_at': c['created_at'],
+            'type': 'comment'
+        })
+
+    # Sort by date
+    # Only keep items with a valid date string
+    all_items = [i for i in all_items if i['created_at']]
+    all_items.sort(key=lambda x: x['created_at'])
+    return all_items
+
+def parse_threads(items):
+    """
+    Group comments by Reviewable Thread ID.
+    """
+    threads = {}
+
+    # Regex for Reviewable headers:
+    # Captures: 1=Full Link, 2=Thread ID
+    # Matches: [file line...](https://reviewable.io/reviews/...#ID...)
+    # This is more robust than matching the full line with styling (*) because replies uses different styling (_).
+    header_regex = re.compile(r'(\[.*?\]\(https:\/\/reviewable\.io\/reviews\/[^#]+#([^:)]+)[^)]*\))')
+
+    for item in items:
+        body = item['body']
+        if not body: continue
+
+        matches = header_regex.findall(body)
+        for full_header, thread_id in matches:
+            if thread_id not in threads:
+                threads[thread_id] = {
+                    "id": thread_id,
+                    "header": full_header, # Will use the first one found (usually from Reviewable)
+                    "comments": [],
+                    "status": "open",
+                    "history": []
+                }
+
+            # Add this item to the thread history
+            threads[thread_id]["history"].append(item)
+
+    # Determine Status
+    for t_id, thread in threads.items():
+        history = thread["history"]
+        if not history:
+            continue
+
+        last_item = history[-1]
+
+        # Check if last message is from AI
+        is_ai = last_item['body'].strip().endswith(AI_SIGNATURE) or last_item['body'].strip().startswith(AI_PREFIX)
+
+        thread['status'] = 'addressed' if is_ai else 'action_required'
+        thread['last_updated'] = last_item['created_at']
+        thread['last_user'] = last_item['user']
+        thread['last_body_snippet'] = last_item['body'][:60].replace('\n', ' ')
+
+    return threads
+
+def list_open_threads(owner, repo, pr_number):
+    items = fetch_comments(owner, repo, pr_number)
+    threads = parse_threads(items)
+
+    print(f"Scanning PR #{pr_number} ({owner}/{repo})...\n")
+
+    open_count = 0
+    # Print Open Threads First
+    print("--- 🔴 Reviewable Threads Requiring Attention ---")
+    for t_id, data in threads.items():
+        if data['status'] == 'action_required':
+            open_count += 1
+            print(f"Thread: {t_id}")
+            print(f"  Last Activity: {data['last_user']} at {data['last_updated']}")
+            print(f"  Snippet: {data['last_body_snippet']}...")
+            # Use raw header for clarity?
+            # print(f"  Header: {data['header']}")
+            print("")
+
+    if open_count == 0:
+        print("✅ No open threads requiring attention.")
+    else:
+        print(f"Found {open_count} threads needing reply.")
+        script_name = os.path.relpath(sys.argv[0])
+        print(f"\nUse `{script_name} thread <THREAD_ID>` to view full conversation.")
+
+def reply_thread(owner, repo, pr_number, thread_id, message):
+    items = fetch_comments(owner, repo, pr_number)
+    threads = parse_threads(items)
+
+    if thread_id not in threads:
+        print(f"Error: Thread ID '{thread_id}' not found in PR #{pr_number}.", file=sys.stderr)
+        sys.exit(1)
+
+    thread_data = threads[thread_id]
+    header = thread_data['header']
+
+    # Construct Reply
+    # Ensure message isn't already prefixed
+    clean_msg = message
+    if clean_msg.startswith(AI_PREFIX):
+        clean_msg = clean_msg[len(AI_PREFIX):].strip()
+
+    reply_body = f"> _{header}_\n\n{AI_PREFIX} {clean_msg}\n\n{AI_SIGNATURE}"
+
+    print(f"Replying to thread {thread_id}...")
+    # Using 'gh issue comment' is simpler than API for posting
+    # But API allows setting body content directly without temp files easier?
+    # Use API for consistency.
+    run_gh(["api", f"repos/{owner}/{repo}/issues/{pr_number}/comments", "-f", f"body={reply_body}"])
+    print("✅ Reply posted successfully.")
+
+def view_thread(owner, repo, pr_number, thread_id):
+    items = fetch_comments(owner, repo, pr_number)
+    threads = parse_threads(items)
+
+    if thread_id not in threads:
+        print(f"Error: Thread ID '{thread_id}' not found in PR #{pr_number}.", file=sys.stderr)
+        # Try to find partial match?
+        sys.exit(1)
+
+    thread = threads[thread_id]
+    print(f"--- Thread {thread_id} ---\n")
+    print(f"Header: {thread['header']}\n")
+
+    for item in thread['history']:
+        print(f"[{item['user']} at {item['created_at']}]")
+        print(f"{item['body']}")
+        print("-" * 40 + "\n")
+
+def main():
+    if len(sys.argv) < 2:
+        print("Usage: reviewable <list|thread|reply> [args...]", file=sys.stderr)
+        sys.exit(1)
+
+    # Preflight: check gh is installed and authenticated
+    if not shutil.which("gh"):
+        print("Error: `gh` CLI is not installed. Install from https://cli.github.com/", file=sys.stderr)
+        sys.exit(1)
+
+    auth_check = subprocess.run(["gh", "auth", "status"], capture_output=True, text=True)
+    if auth_check.returncode != 0:
+        print("Error: `gh` CLI is not authenticated. Run `gh auth login` first.", file=sys.stderr)
+        sys.exit(1)
+
+    command = sys.argv[1]
+
+    # Detect Repo & PR
+    owner, repo = get_repo_info()
+    pr_data = get_current_pr()
+
+    if not pr_data:
+        print("No active PR detected for current branch.", file=sys.stderr)
+        sys.exit(1)
+
+    pr_number = pr_data['number']
+
+    if command == 'list':
+        list_open_threads(owner, repo, pr_number)
+
+    elif command == 'thread':
+        if len(sys.argv) < 3:
+            print("Usage: reviewable thread <thread_id>", file=sys.stderr)
+            sys.exit(1)
+        view_thread(owner, repo, pr_number, sys.argv[2])
+
+    elif command == 'reply':
+        if len(sys.argv) < 4:
+            print("Usage: reviewable reply <thread_id> <message...>", file=sys.stderr)
+            sys.exit(1)
+
+        thread_id = sys.argv[2]
+        message = " ".join(sys.argv[3:])
+        reply_thread(owner, repo, pr_number, thread_id, message)
+
+    else:
+        print(f"Unknown command: {command}", file=sys.stderr)
+        sys.exit(1)
+
+if __name__ == "__main__":
+    main()
