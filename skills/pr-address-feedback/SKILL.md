@@ -7,10 +7,6 @@ description: Read all review feedback on a GitHub PR (with Reviewable.io) and sy
 
 Systematically read and address Reviewable review comments on the current branch's PR using the co-located `scripts/reviewable` helper.
 
-## Prerequisites
-- `gh` CLI must be installed and authenticated (the script will check and fail gracefully if not)
-- Current branch must have an open PR (the script auto-detects the PR via `gh pr view` on the current branch)
-
 ## Resolve Script Path
 
 Determine `REVIEWABLE` as the path to the co-located script relative to this SKILL.md file:
