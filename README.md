@@ -35,3 +35,12 @@ skills/<name>/
 ## License
 
 MIT
+
+## Antigravity Note
+
+While `npx ai-agent-skills` does install for "Gemini", AntiGravity only looks for global skills in `~/.gemini/antigravity/skills/`. To get AntiGravity to see all Gemini global skills, do this:
+
+```bash
+cd ~/.gemini/antigravity
+ln -s ../skills ./ 
+```
