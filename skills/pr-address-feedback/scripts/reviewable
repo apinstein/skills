@@ -233,12 +233,18 @@ def main():
         view_thread(owner, repo, pr_number, sys.argv[2])
 
     elif command == 'reply':
-        if len(sys.argv) < 4:
-            print("Usage: reviewable reply <thread_id> <message...>", file=sys.stderr)
+        if len(sys.argv) < 3:
+            print("Usage: reviewable reply <thread_id> [message | -]", file=sys.stderr)
+            print("  Pass - or omit message to read from stdin (heredoc/pipe).", file=sys.stderr)
             sys.exit(1)
 
         thread_id = sys.argv[2]
-        message = " ".join(sys.argv[3:])
+        if len(sys.argv) < 4 or sys.argv[3] == '-':
+            if sys.stdin.isatty():
+                print("Reading message from stdin... (type your message, then Ctrl-D to finish)", file=sys.stderr)
+            message = sys.stdin.read().strip()
+        else:
+            message = " ".join(sys.argv[3:])
         reply_thread(owner, repo, pr_number, thread_id, message)
 
     else:

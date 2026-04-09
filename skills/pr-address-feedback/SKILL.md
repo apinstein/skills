@@ -1,11 +1,14 @@
 ---
 name: pr-address-feedback
-description: Read all review feedback on a GitHub PR (with Reviewable.io) and systematically address each Reviewable thread.
+description: ALWAYS use this skill to access, address, reply to, or resolve GitHub PR review comments or Reviewable.io threads. Do NOT use raw `gh pr comment`, `gh api`, or any other gh subcommand directly — use the co-located `reviewable` script instead.
 ---
 
 # PR Address Feedback Skill
 
 Systematically read and address Reviewable review comments on the current branch's PR using the co-located `scripts/reviewable` helper.
+
+> [!IMPORTANT]
+> **Always** use the `reviewable` script for all PR comment operations. Never use `gh pr comment`, `gh api`, or similar raw commands — they bypass thread tracking, AI signature injection, and the Reviewable thread model.
 
 ## Prerequisites
 - `gh` CLI must be installed and authenticated (the script will check and fail gracefully if not)
@@ -43,9 +46,11 @@ For each open thread:
 For each open thread:
 
 1. **Code changes** — Make the requested change to the codebase.
-2. **Reply** — Use the helper script to reply:
+2. **Reply** — Pipe a heredoc directly into the script to avoid all shell-escaping issues with backticks, quotes, and special characters:
    ```bash
-   $REVIEWABLE reply <THREAD_ID> "<YOUR_MESSAGE>"
+   $REVIEWABLE reply <THREAD_ID> - << 'REPLY'
+   <YOUR_MESSAGE>
+   REPLY
    ```
    The message should explain what you did or answer the question.
    **Do not** include `[AI]` prefix or signature — the script handles that automatically.
