@@ -29,6 +29,9 @@ This outputs threads with status "Action Required". If no threads need attention
 
 ## Step 2 — Analyze Feedback
 
+> [!NOTE]
+> PRs can have **dozens of threads**. Thread IDs are long opaque strings. Track them carefully — it is easy to accidentally post the same reply to multiple threads or mix up which reply belongs where.
+
 For each open thread:
 - Read the snippets provided in the list output.
 - If more context is needed, view the full conversation:
@@ -37,11 +40,22 @@ For each open thread:
   ```
 - Determine the required action (code change, question answer, suggestion).
 
+## Step 2b — Build a Reply Plan
+
+Before posting **any** replies, write out an explicit plan mapping each thread to its intended reply. This is your source of truth when posting — do not rely on memory.
+
+| Thread ID | Summary | Planned Reply |
+|-----------|---------|---------------|
+| `<ID1>` | what the reviewer asked | your reply |
+| `<ID2>` | ... | ... |
+
+Make any required **code changes first**, then post replies in order from the plan, checking off each row as you go.
+
 ## Step 3 — Address Each Thread
 
-For each open thread:
+Work through the reply plan row by row:
 
-1. **Code changes** — Make the requested change to the codebase.
+1. **Code changes** — Make the requested change to the codebase (if not already done).
 2. **Reply** — Pipe a heredoc directly into the script to avoid all shell-escaping issues with backticks, quotes, and special characters:
    ```bash
    $REVIEWABLE reply <THREAD_ID> - << 'REPLY'
@@ -50,6 +64,9 @@ For each open thread:
    ```
    The message should explain what you did or answer the question.
    **Do not** include `[AI]` prefix or signature — the script handles that automatically.
+
+> [!CAUTION]
+> Double-check the Thread ID against your reply plan **before each `reply` call**. Posting the wrong reply to the wrong thread cannot be undone.
 
 ## Step 4 — Verify
 
