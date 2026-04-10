@@ -26,7 +26,7 @@ THREADS=$(mktemp)
 $REVIEWABLE list --out $THREADS
 ```
 
-This prints a one-line summary to stdout (e.g. `12 open thread(s); full details in: /tmp/tmp.XXX`) and writes the full thread conversations to `$THREADS`. Read that file to see all open threads with their history.
+This prints a one-line summary to stdout (e.g. `12 open thread(s); full details in: /tmp/tmp.XXX`) and writes the full thread conversations to `$THREADS`. Read that file to see all open threads with their history. This is the preferred approach so that the output doesn't exceed tool output buffers.
 
 Pass `--out -` or omit `--out` to write directly to stdout instead.
 

@@ -155,48 +155,16 @@ def parse_threads(items):
 
     return threads
 
-def _compact_body(body):
-    """
-    Strip quoted code blocks (lines starting with '> ```' or '> ' inside a code fence)
-    from a comment body. These are code context lines Reviewable embeds for reference —
-    they bloat list output without adding actionable information.
-    Keeps: header links, actual comment text, signature lines.
-    """
-    lines = body.splitlines()
-    result = []
-    in_code_fence = False
-    for line in lines:
-        stripped = line.strip()
-        # Track entry/exit of blockquoted code fences: "> ```"
-        if stripped.startswith('> ```') or stripped == '> ```':
-            in_code_fence = not in_code_fence
-            continue  # drop the fence line itself
-        if in_code_fence:
-            continue  # drop code content lines
-        result.append(line)
-    # Collapse runs of blank lines to a single blank
-    collapsed = []
-    prev_blank = False
-    for line in result:
-        is_blank = not line.strip()
-        if is_blank and prev_blank:
-            continue
-        collapsed.append(line)
-        prev_blank = is_blank
-    return '\n'.join(collapsed).strip()
 
-def _print_thread(thread_id, thread, compact=False, file=None):
-    """Print the conversation for a single thread.
-    compact=True strips embedded code context blocks (used by 'list').
-    compact=False (default) prints the full raw body (used by 'thread').
+def _print_thread(thread_id, thread, file=None):
+    """Print the full conversation for a single thread.
     file: output stream (defaults to sys.stdout).
     """
     print(f"=== Thread {thread_id} ===", file=file)
     print(f"Header: {thread['header']}\n", file=file)
     for item in thread['history']:
         print(f"[{item['user']} at {item['created_at']}]", file=file)
-        body = _compact_body(item['body']) if compact else item['body']
-        print(body, file=file)
+        print(item['body'], file=file)
         print("-" * 40 + "\n", file=file)
 
 def list_open_threads(owner, repo, pr_number, out_file=None):
@@ -219,13 +187,13 @@ def list_open_threads(owner, repo, pr_number, out_file=None):
         with open(out_file, 'w') as f:
             print(f"{len(open_threads)} open thread(s) in PR #{pr_number} ({owner}/{repo}):\n", file=f)
             for t_id, data in open_threads:
-                _print_thread(t_id, data, compact=True, file=f)
+                _print_thread(t_id, data, file=f)
                 print("", file=f)
         print(f"{len(open_threads)} open thread(s); full details in: {out_file}")
     else:
         print(f"{len(open_threads)} open thread(s) in PR #{pr_number} ({owner}/{repo}):\n")
         for t_id, data in open_threads:
-            _print_thread(t_id, data, compact=True)
+            _print_thread(t_id, data)
             print("")
 
 
