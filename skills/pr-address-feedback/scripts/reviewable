@@ -40,19 +40,19 @@ def get_current_pr():
         return None
 
 def fetch_comments(owner, repo, pr_number):
-    """Fetch all review and issue comments."""
-    # 1. Fetch Review Bodies (Reviewable initial comments often reside here)
-    # Use --paginate and --jq .[] to stream objects
+    """Fetch all review bodies and issue comments, tagged by type."""
+    # 1. Fetch PR Review bodies — Reviewable posts each "publish" here as a
+    #    batch blob containing N thread sections separated by '___'.
     out_reviews = run_gh(["api", "--paginate", f"repos/{owner}/{repo}/pulls/{pr_number}/reviews", "--jq", ".[]"])
     reviews = [json.loads(line) for line in out_reviews.splitlines() if line.strip()]
 
-    # 2. Fetch Issue Comments (Reviewable replies reside here)
+    # 2. Fetch Issue Comments — individual per-thread replies (from Reviewable
+    #    or our `reviewable reply` script), each referencing one thread.
     out_comments = run_gh(["api", "--paginate", f"repos/{owner}/{repo}/issues/{pr_number}/comments", "--jq", ".[]"])
     comments = [json.loads(line) for line in out_comments.splitlines() if line.strip()]
 
     all_items = []
 
-    # Process Reviews
     for r in reviews:
         all_items.append({
             'id': r['id'],
@@ -62,7 +62,6 @@ def fetch_comments(owner, repo, pr_number):
             'type': 'review'
         })
 
-    # Process Issue Comments
     for c in comments:
         all_items.append({
             'id': c['id'],
@@ -78,51 +77,82 @@ def fetch_comments(owner, repo, pr_number):
     all_items.sort(key=lambda x: x['created_at'])
     return all_items
 
+# Matches a Reviewable thread link:  [label](https://reviewable.io/reviews/...#ThreadId:...:...)
+# Captures: group 1 = full link markdown, group 2 = thread ID (first segment after #)
+THREAD_LINK_RE = re.compile(r'(\[.*?\]\(https://reviewable\.io/reviews/[^#]+#([^:)]+)[^)]*\))')
+
+def _make_thread_entry(thread_id, header, item):
+    return {
+        "id": thread_id,
+        "header": header,
+        "comments": [],
+        "status": "open",
+        "history": []
+    }
+
 def parse_threads(items):
     """
-    Group comments by Reviewable Thread ID.
+    Group comments into per-thread histories.
+
+    Reviewable uses two GitHub primitives:
+
+    PR Review bodies (type='review'):
+        When a reviewer publishes, Reviewable posts ONE GitHub PR Review whose
+        body bundles all their new thread comments in a single blob, separated
+        by '\\n___\\n'. Each section contains exactly one thread ID link.
+        We split these blobs and route each section to its thread individually.
+
+    Issue comments (type='comment'):
+        Individual replies to a specific thread — either posted by Reviewable
+        on behalf of a reviewer, or by our `reviewable reply` script. Each
+        references exactly one thread ID.
     """
     threads = {}
 
-    # Regex for Reviewable headers:
-    # Captures: 1=Full Link, 2=Thread ID
-    # Matches: [file line...](https://reviewable.io/reviews/...#ID...)
-    # This is more robust than matching the full line with styling (*) because replies uses different styling (_).
-    header_regex = re.compile(r'(\[.*?\]\(https:\/\/reviewable\.io\/reviews\/[^#]+#([^:)]+)[^)]*\))')
-
     for item in items:
-        body = item['body']
-        if not body: continue
-
-        matches = header_regex.findall(body)
-        for full_header, thread_id in matches:
-            if thread_id not in threads:
-                threads[thread_id] = {
-                    "id": thread_id,
-                    "header": full_header, # Will use the first one found (usually from Reviewable)
-                    "comments": [],
-                    "status": "open",
-                    "history": []
-                }
-
-            # Add this item to the thread history
-            threads[thread_id]["history"].append(item)
-
-    # Determine Status
-    for t_id, thread in threads.items():
-        history = thread["history"]
-        if not history:
+        body = item.get('body') or ''
+        if not body:
             continue
 
-        last_item = history[-1]
+        if item['type'] == 'review':
+            # Split the batch blob into per-thread sections and route each one.
+            sections = re.split(r'\n___\n', body)
+            for section in sections:
+                section = section.strip()
+                matches = THREAD_LINK_RE.findall(section)
+                if not matches:
+                    continue
+                full_header, thread_id = matches[0]  # each section has exactly one
+                if thread_id not in threads:
+                    threads[thread_id] = _make_thread_entry(thread_id, full_header, item)
+                threads[thread_id]['history'].append({
+                    **item,
+                    'body': section,
+                })
 
-        # Check if last message is from AI
-        is_ai = last_item['body'].strip().endswith(AI_SIGNATURE) or last_item['body'].strip().startswith(AI_PREFIX)
+        else:  # type == 'comment'
+            matches = THREAD_LINK_RE.findall(body)
+            if not matches:
+                continue
+            full_header, thread_id = matches[0]
+            if thread_id not in threads:
+                threads[thread_id] = _make_thread_entry(thread_id, full_header, item)
+            threads[thread_id]['history'].append(item)
 
+    # Determine status from the last entry in each thread's history.
+    # A thread is 'addressed' if the last comment came from our AI script.
+    # Otherwise it's 'action_required' (open for human review).
+    for t_id, thread in threads.items():
+        history = thread['history']
+        if not history:
+            continue
+        last = history[-1]
+        last_body = last['body'].strip()
+        is_ai = last_body.endswith(AI_SIGNATURE) or last_body.startswith(AI_PREFIX)
         thread['status'] = 'addressed' if is_ai else 'action_required'
-        thread['last_updated'] = last_item['created_at']
-        thread['last_user'] = last_item['user']
-        thread['last_body_snippet'] = last_item['body'][:60].replace('\n', ' ')
+        thread['last_updated'] = last['created_at']
+        thread['last_user'] = last['user']
+        thread['last_body_snippet'] = last_body[:80].replace('\n', ' ')
 
     return threads
 
@@ -139,6 +169,7 @@ def list_open_threads(owner, repo, pr_number):
         if data['status'] == 'action_required':
             open_count += 1
             print(f"Thread: {t_id}")
+            print(f"  Header: {data['header']}")
             print(f"  Last Activity: {data['last_user']} at {data['last_updated']}")
             print(f"  Snippet: {data['last_body_snippet']}...")
             # Use raw header for clarity?
@@ -184,7 +215,6 @@ def view_thread(owner, repo, pr_number, thread_id):
 
     if thread_id not in threads:
         print(f"Error: Thread ID '{thread_id}' not found in PR #{pr_number}.", file=sys.stderr)
-        # Try to find partial match?
         sys.exit(1)
 
     thread = threads[thread_id]
@@ -201,7 +231,6 @@ def main():
         print("Usage: reviewable <list|thread|reply> [args...]", file=sys.stderr)
         sys.exit(1)
 
-    # Preflight: check gh is installed and authenticated
     if not shutil.which("gh"):
         print("Error: `gh` CLI is not installed. Install from https://cli.github.com/", file=sys.stderr)
         sys.exit(1)
