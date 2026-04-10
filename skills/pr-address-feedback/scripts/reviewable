@@ -185,20 +185,27 @@ def _compact_body(body):
         prev_blank = is_blank
     return '\n'.join(collapsed).strip()
 
-def _print_thread(thread_id, thread, compact=False):
+def _print_thread(thread_id, thread, compact=False, file=None):
     """Print the conversation for a single thread.
     compact=True strips embedded code context blocks (used by 'list').
     compact=False (default) prints the full raw body (used by 'thread').
+    file: output stream (defaults to sys.stdout).
     """
-    print(f"=== Thread {thread_id} ===")
-    print(f"Header: {thread['header']}\n")
+    print(f"=== Thread {thread_id} ===", file=file)
+    print(f"Header: {thread['header']}\n", file=file)
     for item in thread['history']:
-        print(f"[{item['user']} at {item['created_at']}]")
+        print(f"[{item['user']} at {item['created_at']}]", file=file)
         body = _compact_body(item['body']) if compact else item['body']
-        print(body)
-        print("-" * 40 + "\n")
+        print(body, file=file)
+        print("-" * 40 + "\n", file=file)
 
-def list_open_threads(owner, repo, pr_number):
+def list_open_threads(owner, repo, pr_number, out_file=None):
+    """
+    List open threads.
+    out_file: path to write full thread content to, or None to write to stdout.
+    When out_file is set, stdout gets a one-line summary only — avoids
+    subprocess output buffer limits when there are many/long threads.
+    """
     items = fetch_comments(owner, repo, pr_number)
     threads = parse_threads(items)
 
@@ -208,10 +215,19 @@ def list_open_threads(owner, repo, pr_number):
         print("✅ No open threads requiring attention.")
         return
 
-    print(f"{len(open_threads)} open thread(s) in PR #{pr_number} ({owner}/{repo}):\n")
-    for t_id, data in open_threads:
-        _print_thread(t_id, data, compact=True)
-        print("")
+    if out_file:
+        with open(out_file, 'w') as f:
+            print(f"{len(open_threads)} open thread(s) in PR #{pr_number} ({owner}/{repo}):\n", file=f)
+            for t_id, data in open_threads:
+                _print_thread(t_id, data, compact=True, file=f)
+                print("", file=f)
+        print(f"{len(open_threads)} open thread(s); full details in: {out_file}")
+    else:
+        print(f"{len(open_threads)} open thread(s) in PR #{pr_number} ({owner}/{repo}):\n")
+        for t_id, data in open_threads:
+            _print_thread(t_id, data, compact=True)
+            print("")
+
 
 def reply_thread(owner, repo, pr_number, thread_id, message):
     items = fetch_comments(owner, repo, pr_number)
@@ -276,7 +292,18 @@ def main():
     pr_number = pr_data['number']
 
     if command == 'list':
-        list_open_threads(owner, repo, pr_number)
+        # Parse optional --out FILE flag
+        out_file = None
+        args = sys.argv[2:]
+        if '--out' in args:
+            idx = args.index('--out')
+            if idx + 1 >= len(args):
+                print("Usage: reviewable list [--out FILE]", file=sys.stderr)
+                sys.exit(1)
+            out_file = args[idx + 1]
+            if out_file == '-':
+                out_file = None  # '-' means stdout
+        list_open_threads(owner, repo, pr_number, out_file=out_file)
 
     elif command == 'thread':
         if len(sys.argv) < 3:

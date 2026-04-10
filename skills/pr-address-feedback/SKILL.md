@@ -22,17 +22,15 @@ All commands below use `REVIEWABLE` to stay portable regardless of skill directo
 ## Step 1 — List Open Threads
 
 ```bash
-$REVIEWABLE list
+THREADS=$(mktemp)
+$REVIEWABLE list --out $THREADS
 ```
 
-This prints all threads with status "Action Required", including the **full conversation history** for each thread inline. If there are no open threads, stop here.
+This prints a one-line summary to stdout (e.g. `12 open thread(s); full details in: /tmp/tmp.XXX`) and writes the full thread conversations to `$THREADS`. Read that file to see all open threads with their history.
 
-> [!NOTE]
-> PRs can have **dozens of threads**. Thread IDs are long opaque strings. Track them carefully — it is easy to accidentally post the same reply to multiple threads or mix up which reply belongs where.
+Pass `--out -` or omit `--out` to write directly to stdout instead.
 
-For each thread, determine the required action (code change, question answer, suggestion).
-
-Use `$REVIEWABLE thread <THREAD_ID>` only if you need to re-read a specific thread independently.
+Use `$REVIEWABLE thread <THREAD_ID>` if you need to re-read a specific thread independently.
 
 ## Step 2 — Address Each Thread
 
