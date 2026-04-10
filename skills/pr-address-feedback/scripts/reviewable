@@ -155,13 +155,47 @@ def parse_threads(items):
 
     return threads
 
-def _print_thread(thread_id, thread):
-    """Print the full conversation for a single thread (shared by list and thread commands)."""
+def _compact_body(body):
+    """
+    Strip quoted code blocks (lines starting with '> ```' or '> ' inside a code fence)
+    from a comment body. These are code context lines Reviewable embeds for reference —
+    they bloat list output without adding actionable information.
+    Keeps: header links, actual comment text, signature lines.
+    """
+    lines = body.splitlines()
+    result = []
+    in_code_fence = False
+    for line in lines:
+        stripped = line.strip()
+        # Track entry/exit of blockquoted code fences: "> ```"
+        if stripped.startswith('> ```') or stripped == '> ```':
+            in_code_fence = not in_code_fence
+            continue  # drop the fence line itself
+        if in_code_fence:
+            continue  # drop code content lines
+        result.append(line)
+    # Collapse runs of blank lines to a single blank
+    collapsed = []
+    prev_blank = False
+    for line in result:
+        is_blank = not line.strip()
+        if is_blank and prev_blank:
+            continue
+        collapsed.append(line)
+        prev_blank = is_blank
+    return '\n'.join(collapsed).strip()
+
+def _print_thread(thread_id, thread, compact=False):
+    """Print the conversation for a single thread.
+    compact=True strips embedded code context blocks (used by 'list').
+    compact=False (default) prints the full raw body (used by 'thread').
+    """
     print(f"=== Thread {thread_id} ===")
     print(f"Header: {thread['header']}\n")
     for item in thread['history']:
         print(f"[{item['user']} at {item['created_at']}]")
-        print(item['body'])
+        body = _compact_body(item['body']) if compact else item['body']
+        print(body)
         print("-" * 40 + "\n")
 
 def list_open_threads(owner, repo, pr_number):
@@ -176,7 +210,7 @@ def list_open_threads(owner, repo, pr_number):
 
     print(f"{len(open_threads)} open thread(s) in PR #{pr_number} ({owner}/{repo}):\n")
     for t_id, data in open_threads:
-        _print_thread(t_id, data)
+        _print_thread(t_id, data, compact=True)
         print("")
 
 def reply_thread(owner, repo, pr_number, thread_id, message):

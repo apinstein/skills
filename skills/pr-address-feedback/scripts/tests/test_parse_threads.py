@@ -21,6 +21,7 @@ reviewable = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(reviewable)
 parse_threads = reviewable.parse_threads
 _print_thread = reviewable._print_thread
+_compact_body = reviewable._compact_body
 AI_SIGNATURE = reviewable.AI_SIGNATURE
 
 FIXTURES = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures")
@@ -183,3 +184,30 @@ class TestPrintThreadOutput:
         out = capsys.readouterr().out
         assert "hardcoded" in out       # opener text
         assert AI_SIGNATURE in out      # AI reply
+
+
+# ---------------------------------------------------------------------------
+# 5. _compact_body: strips quoted code blocks, keeps comment text
+# ---------------------------------------------------------------------------
+
+class TestCompactBody:
+    def test_strips_quoted_code_fence(self):
+        body = "*[link](https://reviewable.io/reviews/o/r/1#-T:-T:b)*\n> ```swift\n> let x = 1\n> ```\n\nWhy is x hardcoded?"
+        result = _compact_body(body)
+        assert "hardcoded" in result
+        assert "let x = 1" not in result
+        assert "```" not in result
+
+    def test_keeps_non_code_quoted_lines(self):
+        # A plain blockquote (not a code fence) should be kept
+        body = "> This is a quoted reply.\n\nMy response."
+        result = _compact_body(body)
+        assert "quoted reply" in result
+        assert "My response" in result
+
+    def test_collapses_extra_blank_lines(self):
+        body = "Line one\n\n\n\nLine two"
+        result = _compact_body(body)
+        assert "\n\n\n" not in result  # no triple blanks
+        assert "Line one" in result
+        assert "Line two" in result
