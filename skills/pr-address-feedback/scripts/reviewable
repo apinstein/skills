@@ -152,36 +152,32 @@ def parse_threads(items):
         thread['status'] = 'addressed' if is_ai else 'action_required'
         thread['last_updated'] = last['created_at']
         thread['last_user'] = last['user']
-        thread['last_body_snippet'] = last_body[:80].replace('\n', ' ')
 
     return threads
+
+def _print_thread(thread_id, thread):
+    """Print the full conversation for a single thread (shared by list and thread commands)."""
+    print(f"=== Thread {thread_id} ===")
+    print(f"Header: {thread['header']}\n")
+    for item in thread['history']:
+        print(f"[{item['user']} at {item['created_at']}]")
+        print(item['body'])
+        print("-" * 40 + "\n")
 
 def list_open_threads(owner, repo, pr_number):
     items = fetch_comments(owner, repo, pr_number)
     threads = parse_threads(items)
 
-    print(f"Scanning PR #{pr_number} ({owner}/{repo})...\n")
+    open_threads = [(t_id, data) for t_id, data in threads.items() if data['status'] == 'action_required']
 
-    open_count = 0
-    # Print Open Threads First
-    print("--- 🔴 Reviewable Threads Requiring Attention ---")
-    for t_id, data in threads.items():
-        if data['status'] == 'action_required':
-            open_count += 1
-            print(f"Thread: {t_id}")
-            print(f"  Header: {data['header']}")
-            print(f"  Last Activity: {data['last_user']} at {data['last_updated']}")
-            print(f"  Snippet: {data['last_body_snippet']}...")
-            # Use raw header for clarity?
-            # print(f"  Header: {data['header']}")
-            print("")
-
-    if open_count == 0:
+    if not open_threads:
         print("✅ No open threads requiring attention.")
-    else:
-        print(f"Found {open_count} threads needing reply.")
-        script_name = os.path.relpath(sys.argv[0])
-        print(f"\nUse `{script_name} thread <THREAD_ID>` to view full conversation.")
+        return
+
+    print(f"{len(open_threads)} open thread(s) in PR #{pr_number} ({owner}/{repo}):\n")
+    for t_id, data in open_threads:
+        _print_thread(t_id, data)
+        print("")
 
 def reply_thread(owner, repo, pr_number, thread_id, message):
     items = fetch_comments(owner, repo, pr_number)
@@ -217,14 +213,7 @@ def view_thread(owner, repo, pr_number, thread_id):
         print(f"Error: Thread ID '{thread_id}' not found in PR #{pr_number}.", file=sys.stderr)
         sys.exit(1)
 
-    thread = threads[thread_id]
-    print(f"--- Thread {thread_id} ---\n")
-    print(f"Header: {thread['header']}\n")
-
-    for item in thread['history']:
-        print(f"[{item['user']} at {item['created_at']}]")
-        print(f"{item['body']}")
-        print("-" * 40 + "\n")
+    _print_thread(thread_id, threads[thread_id])
 
 def main():
     if len(sys.argv) < 2:

@@ -20,6 +20,7 @@ spec = importlib.util.spec_from_loader("reviewable", importlib.machinery.SourceF
 reviewable = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(reviewable)
 parse_threads = reviewable.parse_threads
+_print_thread = reviewable._print_thread
 AI_SIGNATURE = reviewable.AI_SIGNATURE
 
 FIXTURES = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures")
@@ -155,3 +156,30 @@ class TestStatusAndListView:
         bodies = [h["body"] for h in history]
         assert any("cached" in b for b in bodies)        # opener
         assert any("O(1)" in b for b in bodies)          # human followup
+
+
+# ---------------------------------------------------------------------------
+# 4. _print_thread output: list command emits full content inline
+# ---------------------------------------------------------------------------
+
+class TestPrintThreadOutput:
+    def setup_method(self):
+        review_body = load_fixture("review_1.md")
+        ai_reply = load_fixture("issue_comment_thread_a_ai_reply.md")
+        items = [
+            make_review(review_body, ts="2024-01-01T10:00:00Z"),
+            make_comment(ai_reply, user="ai-bot", ts="2024-01-01T11:00:00Z"),
+        ]
+        self.threads = parse_threads(items)
+
+    def test_print_thread_includes_thread_id_and_header(self, capsys):
+        _print_thread("-ThreadA", self.threads["-ThreadA"])
+        out = capsys.readouterr().out
+        assert "-ThreadA" in out
+        assert "src/foo.swift" in out   # file from header
+
+    def test_print_thread_includes_all_history_bodies(self, capsys):
+        _print_thread("-ThreadA", self.threads["-ThreadA"])
+        out = capsys.readouterr().out
+        assert "hardcoded" in out       # opener text
+        assert AI_SIGNATURE in out      # AI reply
