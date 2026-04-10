@@ -22,22 +22,22 @@ All commands below use `REVIEWABLE` to stay portable regardless of skill directo
 ## Step 1 — List Open Threads
 
 ```bash
-THREADS=$(mktemp)
-$REVIEWABLE list --out $THREADS
+$REVIEWABLE list
 ```
 
-This prints a one-line summary to stdout (e.g. `12 open thread(s); full details in: /tmp/tmp.XXX`) and writes the full thread conversations to `$THREADS`.
+This outputs the IDs of all threads with status "Action Required". If there are no open threads, stop here.
 
-> [!IMPORTANT]
-> Read `$THREADS` using the **`view_file` tool** on the file path — do NOT use `cat $THREADS` as a shell command. The file may be large and `cat` output will exceed tool buffer limits.
+## Step 2 — Read and Address Each Thread
 
-Pass `--out -` or omit `--out` to write directly to stdout instead.
+For each thread ID from `list`, read the full conversation then reply:
 
-Use `$REVIEWABLE thread <THREAD_ID>` if you need to re-read a specific thread independently.
+```bash
+$REVIEWABLE thread <THREAD_ID>
+```
 
-## Step 2 — Address Each Thread
+The output is bounded to one thread at a time — safe for any tool buffer.
 
-For each open thread:
+For each thread:
 
 1. **Code changes** — Make the requested change to the codebase (if needed).
 2. **Reply** — Pipe a heredoc directly into the script to avoid shell-escaping issues with backticks, quotes, and special characters:
