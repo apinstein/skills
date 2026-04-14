@@ -36,6 +36,7 @@ Aggressively review the plan for robustness by checking the following:
 - [ ] **Internal Consistency**: Is the plan logically sound and internally consistent from end-to-end?
 - [ ] **Comprehensiveness (No Glossing Over)**: Does the plan skip or gloss over foreseeable details that will become blockers during implementation? While some minor things must be figured out at runtime, all foreseeable architectural specifics or known edge-cases must be clarified in the text.
 - [ ] **Cross-Referencing**: Where details depend on other components, are they properly cross-referenced against the rest of the plan or existing system documentation?
+- [ ] **Anticipation of Failure Modes** Reading the plan, can you anticipate any failures in execution we will have due to lack of planning?
 
-## 6. Output
-Present your review as a structured response identifying any missing pieces or areas of misalignment based on this checklist.
+## 6. Output and Action
+Present your review as a structured response identifying any missing pieces or areas of misalignment based on this checklist. **Most importantly, DO NOT just ask the user if they want to update the plan.** After summarizing the audit, proactively patch the `implementation_plan.md` file (or relevant plan document) to fix all the methodological gaps and discrepancies you identified.
