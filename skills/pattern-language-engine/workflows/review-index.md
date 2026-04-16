@@ -36,15 +36,15 @@ A pattern language is only as useful as its index. If patterns are grouped arbit
 Once the user approves the Phase 1 structural reorganization, you must mechanically execute the changes to preserve the Semantic ID namespace.
 
 1. **Calculate Semantic Blocks**
-   - Read the newly approved index order. Map it to the standard Semantic Scale Blocks (e.g. `1-19` for Macro, `20-39` for Meso, `40-59` for Micro). We always leave a little space at the end for new patterns to fill in, unless we think the pattern language is nearly complete, in which case we keep numbers strictly sequential and do not leave space at the end of categories.
+   - Read the newly approved index order. Map it to the standard Semantic Namespace Blocks (e.g. `001-019` for Category 1, `020-039` for Category 2, `040-059` for Category 3). We always leave a little space at the end for new patterns to fill in, unless we think the pattern language is nearly complete, in which case we keep numbers strictly sequential and do not leave space at the end of categories.
    - Determine the new chronological mathematical IDs for each file.
 
 2. **The Infallible Rename Sweep**
    To prevent catastrophic namespace collisions (e.g., if the new ID for pattern A was the old ID for pattern B), you must execute renaming in a strict three-step buffer process:
-   - **Step 2a:** Draft the new desired numbering explicitly into the `INDEX.md` alongside the current number so the mapping is formally captured. (e.g., Update the list item from `- [G-002: Pageable Wisdom]` to `- [G-020 (was G-002): Pageable Wisdom]`).
-   - **Step 2b (Buffer):** Physically rename all existing pattern files to `.tmp`. Do not do this via ad-hoc terminal manipulation; it wastes tokens and risks scale error. Run the provided strongly constrained script tool: `bash path/to/pattern-language-engine/scripts/buffer-namespace.sh [path/to/folder]`. This clears the local `G-###.md` namespace perfectly.
+   - **Step 2a:** Draft the new desired numbering explicitly into the `INDEX.md` alongside the current number so the mapping is formally captured. (e.g., Update the list item from `- [P-002: Old Pattern]` to `- [P-020 (was P-002): Old Pattern]`).
+   - **Step 2b (Buffer):** Physically rename all existing pattern files to `.tmp`. Do not do this via ad-hoc terminal manipulation; it wastes tokens and risks scale error. Run the provided strongly constrained script tool: `bash path/to/pattern-language-engine/scripts/buffer-namespace.sh [path/to/folder]`. This clears the local `P-###.md` namespace perfectly.
    - **Step 2c (Resolve):** Do not manually execute the renames. Instead, explicitly run the execution tool: `bash path/to/pattern-language-engine/scripts/resolve-namespace.sh [path/to/folder]`. This script will programmatically extract every `[NEW (was OLD)]` mapping from the `INDEX.md`, formally validate that there are no duplicates and that every mapping has a matching `.tmp` file, and execute all renames flawlessly in milliseconds without AI risk.
 
 3. **Link Healing**
-   - Run a workspace-wide string replacement sweep to find any broken markdown links pointing to the old IDs (e.g. `[G-002`) and replace them with the new IDs (`[G-020`). 
+   - Run a workspace-wide string replacement sweep to find any broken markdown links pointing to the old IDs (e.g. `[P-002`) and replace them with the new IDs (`[P-020`). 
    - Clean up the `INDEX.md` to remove any mapping drafts and ensure every link perfectly points to the newly re-indexed files.
