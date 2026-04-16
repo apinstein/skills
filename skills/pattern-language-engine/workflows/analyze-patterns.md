@@ -1,5 +1,5 @@
 ---
-description: Analyzes the organization of the pattern language indices to ensure logical grouping by Scale, Domain, and Complementary relationships.
+description: Analyzes and reorganizes the pattern language indices by spatial scale.
 ---
 
 # Analyze Pattern Organization

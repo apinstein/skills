@@ -25,7 +25,7 @@ This skill imbues an AI agent with the algorithmic ability to manage, enforce, a
 As pattern networks grow organically, they become structurally messy. This engine provides two executable commands for recursive self-improvement on any tracked directory:
 
 1. **Internal Organization:** Analyze a pattern language folder, ensure patterns are ordered correctly by category, and physically execute ID re-mapping safely using `.tmp` buffers to guarantee zero namespace collisions.
-   `/analyze-pattern-organization [path/to/folder, if it's not obvious which to target]`
+   `/analyze-patterns [path/to/folder, if it's not obvious which to target]`
 
 2. **Editorial Review:** Acts as an Editor-In-Chief to enforce strict format compliance, narrative conciseness, and lateral link-validity on a specific pattern file.
    `/review-pattern [pattern ID or path/to/pattern.md]`
