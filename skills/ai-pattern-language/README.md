@@ -85,7 +85,7 @@ These patterns are not static rules written in stone. They form a living organis
 
 ## Bootstrapping Patterns
 If you are starting on a new project, you can run the bootstrap workflow to generate the initial set of project-specific patterns based on the existing codebase:
-`/slash-command bootstrap-project-patterns` (or run it from `workflows/bootstrap-project-patterns.md`).
+`/slash-command bootstrap-project-patterns` (or run it from `workflows/bpt/bootstrap-project-patterns.md`).
 
 ## Analyzing & Reorganizing Patterns
 As your pattern language grows, it can become structurally messy. We provide two commands for recursive self-improvement:
