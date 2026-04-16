@@ -83,10 +83,35 @@ for i in "${!old_ids[@]}"; do
   done
 done
 
+echo "Executing internal link healing (Pass 1: Buffer to prevent collisions)..."
+for i in "${!old_ids[@]}"; do
+  old="${old_ids[$i]}"
+  for f in *.md; do
+    if [ -f "$f" ]; then
+      sed -i '' "s/$old/__TMP_LINK_${old}__/g" "$f"
+    fi
+  done
+done
+
+echo "Executing internal link healing (Pass 2: Resolve)..."
+for i in "${!old_ids[@]}"; do
+  old="${old_ids[$i]}"
+  new="${new_ids[$i]}"
+  for f in *.md; do
+    if [ -f "$f" ]; then
+      sed -i '' "s/__TMP_LINK_${old}__/$new/g" "$f"
+    fi
+  done
+done
+
 # Determine if any tmp files were left behind
 lingering=$(ls -1 *-*.md.tmp 2>/dev/null | wc -l)
 if [ "$lingering" -gt 0 ]; then
   echo "Warning: $lingering .tmp files were NOT resolved because they were missing from the INDEX.md mapping."
 else
   echo "Success: All mapped files resolved perfectly. No .tmp files remaining."
+  
+  echo "Cleaning up draft mappings in INDEX.md..."
+  # Automatically strip out " (was X-123)" sequences from the index now that resolution is complete
+  sed -i '' -E 's/ \(was [A-Za-z0-9-]+\)//g' INDEX.md
 fi
