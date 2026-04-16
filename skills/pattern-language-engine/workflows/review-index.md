@@ -1,8 +1,8 @@
 ---
-description: Analyzes and reorganizes the pattern language indices by spatial scale.
+description: Reviews and reorganizes the pattern language index.
 ---
 
-# Analyze Pattern Organization
+# Review Index
 
 **Goal:** Provide an introspective, recursive self-improvement pass over the current Pattern Language ecosystem to ensure patterns are organized correctly according to formal Pattern Language pedagogy.
 
