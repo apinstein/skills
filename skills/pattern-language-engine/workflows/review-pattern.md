@@ -15,18 +15,19 @@ Writing a pattern is easy; writing a *good* pattern that resolves a powerful con
    - The user must specify the path to a single pattern file (e.g., `G-005-tool-driven-correctness.md` or a project's `product/P-001-button.md`). Read the file.
 
 2. **Template Compliance Checks**
-   - *Check:* Does it contain all explicit sections defined in `pattern-template.md` (Context, Problem, Forces, Solution, Consequently, Related Patterns)?
-   - *Check:* Is the Problem section extremely constrained (1-3 sentences maximum)?
-   - *Check:* Is the Solution section strictly stated as a direct **instruction/mandate** rather than passive advice?
+   - *Check:* Does it start with a title containing the appropriate Confidence Tag (`**`, `*`, or no asterisk)?
+   - *Check:* Does it contain an archetypal picture or placeholder?
+   - *Check:* Are the `⋇ ⋇ ⋇` markers used around the problem and solution blocks?
+   - *Check:* Is the essence of the problem 1-2 sentences maximum?
+   - *Check:* Is the Solution section strictly stated as a direct **instruction** rather than passive advice?
+   - *Check:* Is there a solution diagram present?
 
-3. **Conciseness & Power Checks**
-   - *Check:* Is the language concise and powerful? Flag paragraphs that ramble.
-   - *Check (The Hallucination Test):* Is this actually a structural invariant (a real pattern), or is it just generic trite advice (e.g., "write clean code")? It must resolve a specific tension.
-   - *Check (Force Tension):* Do the elements listed under "Forces" genuinely conflict with each other? Without conflicting forces, there is no need for a pattern.
+3. **Invariant & Context Checks**
+   - *Check (Confidence Validation):* If the pattern is marked with `**` (high confidence), does it truly summarize a property common to all possible ways of solving the problem (an inescapable invariant)? Or is it just a single solution among many (should have low confidence)?
+   - *Check (Context Sensitive):* Does the pattern properly establish its context by linking UP to larger patterns and DOWN to smaller patterns using the final paragraph?
 
 4. **Visual Aids & Pedagogy**
-   - *Check:* If the pattern discusses complex object relationships, state changes, or UI flow, does it contain a Mermaid diagram or LikeC4 layout? 
-   - *Action:* If a drawing would drastically clarify the text, explicitly flag it and suggest adding one.
+   - *Check:* Verify that the archetypal picture and the labeled solution diagram are genuinely useful and clarify the pattern effectively according to Alexander's pedagogical constraints.
 
 5. **Cross-Link & Ecosystem Validity**
    - *Check:* Use `list_dir` or `find` to verify that every `[Pattern Name](file_path)` cross-link actually points to a file that exists on disk.

@@ -7,7 +7,9 @@ description: Analyzes the boundaries and inter-links between the Business, Produ
 **Goal:** Provide a high-level architectural review to ensure the Business, Product, and Technical (BPT) pattern languages are properly respecting their boundaries, and that cross-domain linking correctly follows the "Product is the center of gravity" philosophy.
 
 ## Context
-In a software company ecosystem, the pattern language is explicitly bifurcated into Business, Product, and Technical domains. These domains are deeply interlocking, but their relationships must be strictly hierarchical based on the core `PHILOSOPHY.md`. If a Technical pattern dictates a Product flow without a compelling architectural mandate, or a Product pattern operates completely divorced from the Business goals, the design is misaligned.
+In a software company ecosystem, the pattern language is explicitly bifurcated into Business, Product, and Technical domains. These domains are deeply interlocking, but their relationships must be strictly hierarchical (e.g. Product translates Business goals into actionable Technical requirements).
+
+Because this Triad approach is highly opinionated, it is isolated here in the `bpt-software-scaffolding` skill. However, the physical mechanics of creating, ordering, and maintaining the three independent directories is entirely delegated to the `pattern-language-engine` skill. If a Technical pattern dictates a Product flow without a compelling architectural mandate, or a Product pattern operates completely divorced from the Business goals, the design is misaligned.
 
 ## Analysis Steps
 
@@ -27,3 +29,7 @@ In a software company ecosystem, the pattern language is explicitly bifurcated i
 4. **Generate Alignment Proposal**
    - Do not automatically modify the files. 
    - Generate a Markdown report detailing the health of the BPT triad. Highlight specific patterns that bleed across domains, suggest where missing cross-domain lateral links are needed, and point out if the ecosystem is over-indexing on Technical patterns while starving the Product/Business rules.
+
+5. **Execution (Delegated to the Engine)**
+   - Once the user approves the structural changes recommended by the BPT Alignment Proposal, you must **not** perform mass renames or re-indexing manually.
+   - You must leverage the generic `.agents/skills/pattern-language-engine/workflows/analyze-pattern-organization.md` workflow on each of the affected domains *individually* to safely execute the physical re-alignments. The BPT skill tells you *what* should change, but the Engine skill dictates *how* it safely changes.

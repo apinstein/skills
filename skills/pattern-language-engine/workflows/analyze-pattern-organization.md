@@ -12,12 +12,12 @@ A pattern language is only as useful as its index. If patterns are grouped arbit
 ## Analysis Steps
 
 1. **Target the Index**
-   - The user must specify the path to a pattern language folder (e.g., `.agents/skills/ai-pattern-language/general/` or a project's `pattern-languages/technical/`) or the direct path to the `INDEX.md` itself.
+   - The user must specify the path to a pattern language folder (e.g., a project's `pattern-languages/technical/`) or the direct path to the `INDEX.md` itself.
    - If a folder is provided, explicitly read the `INDEX.md` inside that folder.
 
-2. **Evaluate Groupings by Scale (Macroscopic to Microscopic)**
-   - *Alexander's Pedagogy:* Patterns must be ordered from the largest architectural structures down to the smallest implementation details.
-   - *Action:* Review the order of patterns within each index. Does a microscopic implementation detail (e.g., "Button Padding") appear before a macroscopic structural rule (e.g., "Global Design System")? Suggest a reordering so that "reading down" the index logically zooms in on the scale.
+2. **Evaluate Sequence by Spatial Scale**
+   - *Alexander's Pedagogy:* A pattern language has the structure of a network, used as a sequence. Patterns must be ordered by spatial scale from largest (structuring) to smallest (embellishing). Reading "up" and "down" should give a sense of which ones are needed.
+   - *Action:* Review the order of patterns within each index. Do they move "always from the larger patterns to the smaller, always from the ones which create structure to the ones which then embellish those structures"? Suggest reordering to ensure a perfect macroscopic to microscopic flow.
 
 3. **Evaluate Groupings by Domain/Context**
    - *Alexander's Pedagogy:* Patterns that solve similar morphological problems should be grouped into clusters (sub-sections).
@@ -42,8 +42,8 @@ Once the user approves the Phase 1 structural reorganization, you must mechanica
 2. **The Infallible Rename Sweep**
    To prevent catastrophic namespace collisions (e.g., if the new ID for pattern A was the old ID for pattern B), you must execute renaming in a strict three-step buffer process:
    - **Step 2a:** Draft the new desired numbering explicitly into the `INDEX.md` alongside the current number so the mapping is formally captured. (e.g., Update the list item from `- [G-002: Pageable Wisdom]` to `- [G-020 (was G-002): Pageable Wisdom]`).
-   - **Step 2b (Buffer):** Physically rename all existing pattern files to `.tmp`. Do not do this via ad-hoc terminal manipulation; it wastes tokens and risks scale error. Run the provided strongly constrained script tool: `bash path/to/ai-pattern-language/scripts/buffer-namespace.sh [path/to/folder]`. This clears the local `G-###.md` namespace perfectly.
-   - **Step 2c (Resolve):** Do not manually execute the renames. Instead, explicitly run the execution tool: `bash path/to/ai-pattern-language/scripts/resolve-namespace.sh [path/to/folder]`. This script will programmatically extract every `[NEW (was OLD)]` mapping from the `INDEX.md`, formally validate that there are no duplicates and that every mapping has a matching `.tmp` file, and execute all renames flawlessly in milliseconds without AI risk.
+   - **Step 2b (Buffer):** Physically rename all existing pattern files to `.tmp`. Do not do this via ad-hoc terminal manipulation; it wastes tokens and risks scale error. Run the provided strongly constrained script tool: `bash path/to/pattern-language-engine/scripts/buffer-namespace.sh [path/to/folder]`. This clears the local `G-###.md` namespace perfectly.
+   - **Step 2c (Resolve):** Do not manually execute the renames. Instead, explicitly run the execution tool: `bash path/to/pattern-language-engine/scripts/resolve-namespace.sh [path/to/folder]`. This script will programmatically extract every `[NEW (was OLD)]` mapping from the `INDEX.md`, formally validate that there are no duplicates and that every mapping has a matching `.tmp` file, and execute all renames flawlessly in milliseconds without AI risk.
 
 3. **Link Healing**
    - Run a workspace-wide string replacement sweep to find any broken markdown links pointing to the old IDs (e.g. `[G-002`) and replace them with the new IDs (`[G-020`). 

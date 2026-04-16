@@ -4,7 +4,7 @@ description: Bootstrap the initial project-specific pattern language by analyzin
 
 # Bootstrap Project AI Patterns
 
-**Goal:** We do not build "one" project-specific pattern language. We explicitly bootstrap **three complementary, standalone pattern languages** (Business, Product, and Technical) for the target software project. Each domain is managed as its own completely independent ecosystem (with its own `INDEX.md` and scale hierarchies), but they communicate via strict cross-domain external references (governed by `.agents/skills/ai-pattern-language/workflows/bpt/analyze-bpt-alignment.md`).
+**Goal:** We do not build "one" project-specific pattern language. We explicitly bootstrap **three complementary, standalone pattern languages** (Business, Product, and Technical) for the target software project. Each domain is managed as its own completely independent ecosystem (with its own `INDEX.md` and scale hierarchies), but they communicate via strict cross-domain external references (governed by `.agents/skills/bpt-software-scaffolding/workflows/analyze-bpt-alignment.md`).
 
 ## Steps
 
@@ -25,11 +25,11 @@ description: Bootstrap the initial project-specific pattern language by analyzin
 
 3. **Scaffold the Project Structure**
    Create the following directories in the project root if they do not exist: `pattern-languages/business`, `pattern-languages/product`, and `pattern-languages/technical`.
-   - Inside each of these 3 domain directories, use `.agents/skills/ai-pattern-language/resources/INDEX-template.md` to instantiate an initial `INDEX.md` file.
-   - Inside the root `pattern-languages/` folder, create a simple `README.md` that instructs human engineers and AI agents to read the complete framework documentation over at `.agents/skills/ai-pattern-language/README.md`.
+   - Inside each of these 3 domain directories, use `.agents/skills/pattern-language-engine/resources/INDEX-template.md` to instantiate an initial `INDEX.md` file.
+   - Inside the root `pattern-languages/` folder, create a simple `README.md` that instructs human engineers and AI agents to read the complete framework documentation over at `.agents/skills/pattern-language-engine/README.md`.
 
 4. **Draft the Base Patterns (Seeding the Namespace)**
-   For each of the three newly created standalone pattern languages, use `.agents/skills/ai-pattern-language/resources/pattern-template.md` to generate the foundational files.
+   For each of the three newly created standalone pattern languages, use `.agents/skills/pattern-language-engine/resources/pattern-template.md` to generate the foundational files.
 
    While each of the three pattern languages is independent, they should be cross-linked where applicable. This initial seeding is a unique opporuntity to identify and segregate project patterns into these complementary domains. For example, a technical pattern might reference a product pattern that it enables, or a business pattern might reference a product pattern that it incentivizes.
    
