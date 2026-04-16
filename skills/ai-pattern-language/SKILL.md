@@ -14,6 +14,6 @@ This skill imbues an AI agent with the ability to manage, enforce, and recursive
 3. **Index Maintenance**: Whenever you write or modify a pattern, you **MUST** update its corresponding domain `INDEX.md` and include a 1-sentence summary. If the `INDEX.md` doesn't exist, generate one using `.agents/skills/ai-pattern-language/resources/INDEX-template.md`. Check the `INDEX.md` to determine the next available ID before creating a new pattern.
 4. **Bootstrapping**: If a project doesn't have any patterns yet, you can run `.agents/skills/ai-pattern-language/workflows/bootstrap-project-patterns.md` to scaffold them.
 
-## Directory Structure
-- **This Skill Directory** (`.agents/skills/ai-pattern-language`): Houses the universal, heavily opinionated "General framework" (`general/PHILOSOPHY.md`, `G-001...`), alongside the templates and workflows. This directory is meant to be portable (e.g., as a git submodule) across multiple repos.
-- **The Project Directory** (`pattern-languages/`): Houses the patterns specific to *this* project, safely separated from the skill logic.
+## Directory Structure (The Meta vs The Project)
+- **The General Skill Directory** (`.agents/skills/ai-pattern-language`): This is the "meta" language. It houses the universal, heavily opinionated patterns (`general/PHILOSOPHY.md`, `G-001...`) that instruct the AI on *how to leverage AI to build software*. This directory contains the guidelines for the execution of work itself, and is portable (e.g., as a git submodule) across multiple repos.
+- **The Project Directory** (`pattern-languages/`): This is the "domain" language. It houses the patterns specific to the codebase of *this* project, defining *what* software is being built. This logic is safely separated from the skill framework.

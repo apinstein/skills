@@ -34,17 +34,36 @@ Instead of an AI blindly listing directory contents to guess what a pattern does
 
 Whenever a new pattern is created or an existing one is updated, **the corresponding `INDEX.md` must be updated** to reflect the change.
 
-## 1. Generalized "Pattern Language" for AI-Driven Development (`.agents/skills/ai-pattern-language/general/`)
-These are universal AI-driven software development patterns that can be shared across any project. They define how the AI should approach the process of AI-driven software development such as design, testing, organization and orchestration, balancing business/product/technical concerns, etc. This pattern language is completely non-specific to this project, and is intended to be usable in any AI-driven development project.
+### Visual Overview: Meta vs Domain Patterns
 
-Note that even this "general" Pattern Language is intended to be very opinionated. Every strong framework inherently has trade-offs, and as such different people may evolve very different "Pattern Languages" for their particular philosophy of software development. The key is that the Pattern Language should be a clear, concise, and actionable guide to the AI agent.
+```mermaid
+flowchart TD
+    Meta(["General / Meta-Language<br/>(How the AI builds)"]) -.->|Orchestrates the SDLC| PROJ
+
+    subgraph PROJ [Project Domain Languages : What is being built]
+        B["Business (`B-`)<br/>Value & Metrics"] <--> P["Product (`P-`)<br/>UX & Journeys"]
+        P <--> T["Technical (`T-`)<br/>Code & Architecture"]
+        B <--> T
+    end
+```
+
+## 1. Generalized "Pattern Language" for AI-Driven Development (`.agents/skills/ai-pattern-language/general/`)
+
+**The Meta-Language:** These patterns are a guide on *how to leverage AI to build software*. They are completely independent of any specific project's source code.
+
+These universal patterns define how the AI should approach the SDLC process itself: how to orchestrate architecture decisions, how to use specific diagramming tools, and how to balance business/product/technical concerns. This directory is a meta-framework that recursively self-improves your own AI development process.
+
+Note that even this "general" Pattern Language is intended to be very opinionated. Every strong framework inherently has trade-offs, and as such different people may evolve very different "Pattern Languages" for their particular philosophy of software development. The key is that the Pattern Language should be a clear, concise, and actionable guidebook for the AI agent.
 
 **Core Philosophy:** The underlying philosophy driving *this* specific pattern language is documented in [`general/PHILOSOPHY.md`](general/PHILOSOPHY.md).
 
-**File Naming:** Use the `G-` prefix and an incrementing number (e.g., `G-001-product-strategy.md`).
+**File Naming:** Use the `G-` prefix and an incrementing number (e.g., `G-001-architecture-diagrams.md`).
 
 ## 2. Project-Specific Pattern Languages (`pattern-languages/`)
-These pattern languages are tailored exclusively to this project. They reference the `general/` patterns but apply strict constraints based on this project's unique tech stack, business logic, and historical decisions.
+
+**The Project Domain:** While the general patterns teach the AI *how* to build, these project-specific patterns define *what* is being built.
+
+These pattern languages are tailored exclusively to this local repository. They reference the `general/` patterns but apply strict constraints to document this project's unique tech stack, business logic, UX rules, and historical decisions. You will spend the vast majority of your time creating and editing patterns in these directories, as they form the living architecture of the specific software you are building.
 
 Crucially, the project's three pattern languages are interwoven. Each domain contains its own scale (from high-level abstraction to tiny details) and cross-references the others extensively. The relationship between these domains is defined by the core philosophy of the pattern language (see `general/PHILOSOPHY.md`).
 
@@ -67,3 +86,13 @@ These patterns are not static rules written in stone. They form a living organis
 ## Bootstrapping Patterns
 If you are starting on a new project, you can run the bootstrap workflow to generate the initial set of project-specific patterns based on the existing codebase:
 `/slash-command bootstrap-project-patterns` (or run it from `workflows/bootstrap-project-patterns.md`).
+
+## Analyzing & Reorganizing Patterns
+As your pattern language grows, it can become structurally messy. We provide two commands for recursive self-improvement:
+
+1. **Internal Organization:** To analyze a *single* pattern language (e.g., just `technical/` or just `general/`) to ensure patterns are ordered correctly by Scale, Domain, and Complementarity:
+   `/slash-command analyze-pattern-organization [path/to/folder]`
+2. **Cross-Domain Alignment:** To structurally review a specific software project and ensure the Business, Product, and Technical domains are respecting boundaries and cross-linking correctly:
+   `/slash-command analyze-bpt-alignment`
+3. **Editorial Review:** To enforce strict editorial standards, conciseness, and link-validity on a single specific pattern:
+   `/slash-command review-pattern [path/to/pattern.md]`
