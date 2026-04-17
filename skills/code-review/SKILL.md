@@ -22,6 +22,7 @@ When performing a code review, follow this checklist to ensure high quality, mai
 
 ## 4. DRY Principle (Don't Repeat Yourself)
 - [ ] **Reinventing the Wheel**: Does the code duplicate functionality that already exists elsewhere in the codebase? (Crucial: identify if existing utilities, helpers, or pattern language classes should have been used instead).
+- [ ] **Test Helpers & Fixtures**: In test suites, are redundant setup functions, mock object factories, and standardized test data factored out into shared helper utilities rather than being copy-pasted across multiple test cases?
 
 ## 5. Architecture and Logic
 - [ ] **Error Handling**: Are all reasonable failure modes and edge cases anticipated and handled gracefully?
