@@ -35,7 +35,7 @@ By linking deeply across domains, the graph of context is maintained.
 ## The Engine Dependency
 This skill defines *how* an application should be architected (BPT), but it does not define *how* a pattern language physically operates. 
 
-The 3 patterns languages are intended to be self-improving through repeated use of the **pattern-language-engine** skill (from https://github.com/apinstein/skills/blob/main/pattern-language-engine/SKILL.md) to actually template, index, and organize the physical markdown files that make up the BPT domains. 
+The 3 patterns languages are intended to be self-improving through repeated use of the **pattern-language-engine** skill (from https://github.com/apinstein/skills/blob/main/skills/pattern-language-engine/SKILL.md) to actually template, index, and organize the physical markdown files that make up the BPT domains. 
 
 ## Workflows
 - **`bootstrap-project-bpt.md`**: Seeds a software repository with the BPT structure.

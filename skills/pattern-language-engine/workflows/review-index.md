@@ -45,6 +45,6 @@ Once the user approves the Phase 1 structural reorganization, you must mechanica
    - **Step 2b (Buffer):** Physically rename all existing pattern files to `.tmp`. Do not do this via ad-hoc terminal manipulation; it wastes tokens and risks scale error. Run the provided strongly constrained script tool: `bash path/to/pattern-language-engine/scripts/buffer-namespace.sh [path/to/folder]`. This clears the local `P-###.md` namespace perfectly.
    - **Step 2c (Resolve):** Do not manually execute the renames. Instead, explicitly run the execution tool: `bash path/to/pattern-language-engine/scripts/resolve-namespace.sh [path/to/folder]`. This script will programmatically extract every `[NEW (was OLD)]` mapping from the `INDEX.md`, formally validate that there are no duplicates and that every mapping has a matching `.tmp` file, and execute all renames flawlessly in milliseconds without AI risk.
 
-3. **Link Healing**
-   - Run a workspace-wide string replacement sweep to find any broken markdown links pointing to the old IDs (e.g. `[P-002`) and replace them with the new IDs (`[P-020`). 
-   - Clean up the `INDEX.md` to remove any mapping drafts and ensure every link perfectly points to the newly re-indexed files.
+3. **Link Healing (Automated)**
+   - The `resolve-namespace.sh` script automatically performs internal link healing and INDEX cleanup after resolving the renames. It uses a two-pass buffer strategy (old IDs → `__TMP_LINK__` → new IDs) to prevent sequential collision cascades, then strips the `(was X-###)` draft annotations from `INDEX.md`.
+   - After the script completes, verify results by scanning the directory for any remaining stale references to old IDs. If the pattern language is referenced from *other* directories outside the target folder, manually sweep those for broken links as well.

@@ -16,6 +16,15 @@ if [ ! -f "INDEX.md" ]; then
   exit 1
 fi
 
+# Cross-platform sed in-place: macOS uses `sed -i ''`, GNU uses `sed -i`
+sed_inplace() {
+  if sed --version 2>/dev/null | grep -q GNU; then
+    sed -i "$@"
+  else
+    sed -i '' "$@"
+  fi
+}
+
 echo "Analyzing INDEX.md for re-mappings..."
 
 # Extract mappings: Format is "[NEW_ID (was OLD_ID):"
@@ -88,7 +97,7 @@ for i in "${!old_ids[@]}"; do
   old="${old_ids[$i]}"
   for f in *.md; do
     if [ -f "$f" ]; then
-      sed -i '' "s/$old/__TMP_LINK_${old}__/g" "$f"
+      sed_inplace "s/$old/__TMP_LINK_${old}__/g" "$f"
     fi
   done
 done
@@ -99,7 +108,7 @@ for i in "${!old_ids[@]}"; do
   new="${new_ids[$i]}"
   for f in *.md; do
     if [ -f "$f" ]; then
-      sed -i '' "s/__TMP_LINK_${old}__/$new/g" "$f"
+      sed_inplace "s/__TMP_LINK_${old}__/$new/g" "$f"
     fi
   done
 done
@@ -113,5 +122,5 @@ else
   
   echo "Cleaning up draft mappings in INDEX.md..."
   # Automatically strip out " (was X-123)" sequences from the index now that resolution is complete
-  sed -i '' -E 's/ \(was [A-Za-z0-9-]+\)//g' INDEX.md
+  sed_inplace -E 's/ \(was [A-Za-z0-9-]+\)//g' INDEX.md
 fi
