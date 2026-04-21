@@ -31,12 +31,17 @@ Verify that the implementation plan contains the expected core components. A pro
 - [ ] **Spec-Driven Development (TDD)**: Reinforce that development must follow spec-driven development using a strict Red-Green cycle. Point out anywhere in the verification plan that lacks automated tests for the feature.
 - [ ] **Implementation Instructions**: Does the plan explicitly instruct the executing AI or engineer to query and reference the project's coding standards and related documentation files during implementation?
 
-## 5. Red-Teaming the Plan
+## 5. The "Two Hard Problems" in CS
+Address naming and caching explicitly, as they are historically the source of the most challenging bugs and technical debt:
+- [ ] **Naming Things**: Are the proposed names for new components, files, functions, variables, and API endpoints clear, consistent with existing conventions, and accurately descriptive of their purpose? If the plan introduces new concepts, are the names chosen carefully to avoid ambiguity?
+- [ ] **Cache Invalidation**: Does the plan introduce or interact with any caching layers? If so, are the cache invalidation strategies, TTLs, and cache coherence mechanisms explicitly planned out and documented?
+
+## 6. Red-Teaming the Plan
 Aggressively review the plan for robustness by checking the following:
 - [ ] **Internal Consistency**: Is the plan logically sound and internally consistent from end-to-end?
 - [ ] **Comprehensiveness (No Glossing Over)**: Does the plan skip or gloss over foreseeable details that will become blockers during implementation? While some minor things must be figured out at runtime, all foreseeable architectural specifics or known edge-cases must be clarified in the text.
 - [ ] **Cross-Referencing**: Where details depend on other components, are they properly cross-referenced against the rest of the plan or existing system documentation?
 - [ ] **Anticipation of Failure Modes** Reading the plan, can you anticipate any failures in execution we will have due to lack of planning?
 
-## 6. Output and Action
+## 7. Output and Action
 Present your review as a structured response identifying any missing pieces or areas of misalignment based on this checklist. **Most importantly, DO NOT just ask the user if they want to update the plan.** After summarizing the audit, proactively patch the `implementation_plan.md` file (or relevant plan document) to fix all the methodological gaps and discrepancies you identified.
