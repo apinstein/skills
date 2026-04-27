@@ -29,6 +29,11 @@ Verify that the implementation plan contains the expected core components. A pro
 
 ## 4. Development Methodology
 - [ ] **Spec-Driven Development (TDD)**: Reinforce that development must follow spec-driven development using a strict Red-Green cycle. Point out anywhere in the verification plan that lacks automated tests for the feature.
+- [ ] **Pre-Implementation Test Matrix Enumeration**: Before any code is written, the plan must instruct the implementor to:
+  1. **Enumerate an exhaustive red/green test matrix** derived directly from the plan's specification. Every expected behavior, input variation, and state transition described in the plan should map to at least one test case.
+  2. **Organize tests in nested test suites** that mirror the component/feature hierarchy of the plan (e.g., `describe FeatureX > describe SubBehaviorY > it("handles edge case Z")`).
+  3. **Red-team the spec and implementation** — actively probe for missing edge cases, boundary conditions, error paths, race conditions, and implicit assumptions that the plan doesn't explicitly address. Add test cases for every gap discovered.
+  4. **Plan for code coverage measurement** — the plan should specify a target coverage threshold and instruct the implementor to run coverage analysis to verify that no spec'd behavior is left untested.
 - [ ] **Implementation Instructions**: Does the plan explicitly instruct the executing AI or engineer to query and reference the project's coding standards and related documentation files during implementation?
 
 ## 5. The "Two Hard Problems" in CS
