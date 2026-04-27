@@ -123,6 +123,12 @@ def parse_threads(items):
                 if not matches:
                     continue
                 full_header, thread_id = matches[0]  # each section has exactly one
+                
+                # Reviewable uses '-' as the Thread ID for the overarching PR "Review discussion".
+                # AI assumes `  -` is an empty markdown list item, so we alias it to something explicit.
+                if thread_id == '-':
+                    thread_id = 'review-discussion'
+                    
                 if thread_id not in threads:
                     threads[thread_id] = _make_thread_entry(thread_id, full_header, item)
                 threads[thread_id]['history'].append({
@@ -135,6 +141,10 @@ def parse_threads(items):
             if not matches:
                 continue
             full_header, thread_id = matches[0]
+            
+            if thread_id == '-':
+                thread_id = 'review-discussion'
+                
             if thread_id not in threads:
                 threads[thread_id] = _make_thread_entry(thread_id, full_header, item)
             threads[thread_id]['history'].append(item)
@@ -176,8 +186,20 @@ def list_open_threads(owner, repo, pr_number):
         return
 
     print(f"{len(open_threads)} open thread(s) in PR #{pr_number} ({owner}/{repo}):")
-    for t_id, _ in open_threads:
-        print(f"  {t_id}")
+    for t_id, data in open_threads:
+        header = data['header']
+        # Try to extract the file path `...` from the header
+        file_match = re.search(r'\*\[`(.*?)`', header)
+        if file_match:
+            context = file_match.group(1)
+        elif "(no related file)" in header:
+            context = "top-level discussion"
+        elif "Reviewable" in header or t_id == 'review-discussion':
+            context = "general PR discussion"
+        else:
+            context = "discussion"
+            
+        print(f"  {t_id.ljust(25)} ({context})")
     script_name = os.path.relpath(sys.argv[0])
     print(f"\nTo read a thread's full conversation: {script_name} thread <THREAD_ID>")
 

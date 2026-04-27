@@ -183,3 +183,77 @@ class TestPrintThreadOutput:
         out = capsys.readouterr().out
         assert "hardcoded" in out       # opener text
         assert AI_SIGNATURE in out      # AI reply
+
+    def test_generic_list_output(self, capsys):
+        items = [
+            make_review(load_fixture("review_generic.md"), ts="2024-01-01T10:00:00Z"),
+        ]
+        orig_fetch = reviewable.fetch_comments
+        reviewable.fetch_comments = lambda o, r, p: items
+        try:
+            reviewable.list_open_threads("apinstein", "vibekeys", 20)
+        finally:
+            reviewable.fetch_comments = orig_fetch
+        
+        out = capsys.readouterr().out
+        assert "review-discussion" in out
+        assert "general PR discussion" in out
+
+    def test_generic_reply_formatting(self, capsys):
+        items = [
+            make_review(load_fixture("review_generic.md"), ts="2024-01-01T10:00:00Z"),
+        ]
+        
+        orig_fetch = reviewable.fetch_comments
+        reviewable.fetch_comments = lambda o, r, p: items
+        
+        # intercept run_gh to capture the argument list
+        last_cmds = []
+        def mock_run_gh(args):
+            last_cmds.append(args)
+            return "{}"
+        
+        orig_run_gh = reviewable.run_gh
+        reviewable.run_gh = mock_run_gh
+        try:
+            reviewable.reply_thread("apinstein", "vibekeys", 20, "review-discussion", "Hello world!")
+            assert len(last_cmds) == 1
+            cmd = last_cmds[0]
+            assert cmd[0] == "api"
+            assert list(filter(lambda a: "body=" in a, cmd))
+            body_arg = next(a for a in cmd if a.startswith("body="))
+            # Ensure the reply body contains the exact Reviewable header link originally sent
+            assert "https://reviewable.io/reviews/apinstein/vibekeys/20#-:-OrCJquY73ICEEPkZ8Q8:b-rfs9a2" in body_arg
+        finally:
+            reviewable.run_gh = orig_run_gh
+            reviewable.fetch_comments = orig_fetch
+
+# ---------------------------------------------------------------------------
+# 5. Generic PR Discussion (thread '-') aliasing to 'review-discussion'
+# ---------------------------------------------------------------------------
+
+class TestGenericReviewDiscussion:
+    def setup_method(self):
+        review_body = load_fixture("review_generic.md")
+        ai_reply = load_fixture("issue_comment_generic_ai.md")
+        self.items = [
+            make_review(review_body, ts="2024-01-01T10:00:00Z"),
+            make_comment(ai_reply, user="ai-bot", ts="2024-01-01T11:00:00Z"),
+        ]
+        self.threads = parse_threads(self.items)
+
+    def test_generic_discussion_aliased(self):
+        # The generic discussion uses thread ID '-', which should be aliased to 'review-discussion'
+        assert "review-discussion" in self.threads
+        assert "-" not in self.threads
+
+    def test_generic_discussion_has_two_history_entries(self):
+        assert len(self.threads["review-discussion"]["history"]) == 2
+
+    def test_generic_discussion_last_entry_is_ai_reply(self):
+        last = self.threads["review-discussion"]["history"][-1]
+        assert AI_SIGNATURE in last["body"]
+
+    def test_generic_discussion_is_addressed(self):
+        # AI replied last -> addressed
+        assert self.threads["review-discussion"]["status"] == "addressed"
