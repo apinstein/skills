@@ -18,7 +18,8 @@ When performing a code review, follow this checklist to ensure high quality, mai
 - [ ] **The Boy Scout Rule (No Lazy Defers)**: Did the coder leave trivial "will fix later" or "TODO" notes out of laziness? AI coders have the capacity to apply trivial improvements instantly; code must be left better than it was found. (Note: Carefully distinguish this from initiating massive, spiraling refactors, which violates the Scope Creep rule).
 
 ## 3. Test Coverage
-- [ ] **Verification & Test Matrix**: Is there robust automated test coverage for all newly created or modified code? Assert that tests form a proper "test matrix" covering materially different input ranges (to trigger distinct behaviors) as well as pathological cases where explicit guards and edge-case handling are required.
+- [ ] **Coverage of Affected Code**: Is there robust automated test coverage that achieves high, rigorous coverage specifically on the lines and branches of code that were created or modified? (The *diff* itself must be thoroughly covered).
+- [ ] **Verification & Test Matrix**: Assert that tests form a proper "test matrix" covering materially different input ranges (to trigger distinct behaviors) as well as pathological cases where explicit guards and edge-case handling are required.
 
 ## 4. DRY Principle (Don't Repeat Yourself)
 - [ ] **Reinventing the Wheel**: Does the code duplicate functionality that already exists elsewhere in the codebase? (Crucial: identify if existing utilities, helpers, or pattern language classes should have been used instead).

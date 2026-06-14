@@ -39,14 +39,15 @@ The output is bounded to one thread at a time — safe for any tool buffer.
 
 For each thread:
 
-1. **Code changes** — Make the requested change to the codebase (if needed).
-2. **Reply** — Pipe a heredoc directly into the script to avoid shell-escaping issues with backticks, quotes, and special characters:
+1. **Review judgment** — Do not optimize for the smallest diff that satisfies the literal comment. First ask whether the comment exposes a deeper design, architecture, product, or testing problem.
+2. **Code changes** — Make the requested change to the codebase (if needed).
+3. **Reply** — Pipe a heredoc directly into the script to avoid shell-escaping issues with backticks, quotes, and special characters:
    ```bash
    $REVIEWABLE reply <THREAD_ID> - << 'REPLY'
    <YOUR_MESSAGE>
    REPLY
    ```
-   The message should explain what you did or answer the question.
+   The message should explain the design judgment made, not just list the mechanical change. Include concrete verification evidence and call out any remaining environmental or test-run limitations honestly.
    **Do not** include `[AI]` prefix or signature — the script handles that automatically.
 
 > [!CAUTION]
