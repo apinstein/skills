@@ -1,0 +1,4 @@
+interface:
+  display_name: "Fix Bugs"
+  short_description: "Reproduce, diagnose, test, fix, and verify bugs"
+  default_prompt: "Use $fix-bugs to investigate and fix this bug with reproduction, red test coverage, implementation, and final verification."
