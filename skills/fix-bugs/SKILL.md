@@ -1,6 +1,6 @@
 ---
 name: fix-bugs
-description: Systematic bug-fixing workflow for reported defects, regressions, failing behavior, flaky tests, crashes, visual/UI bugs, platform-specific failures, log-reported errors, and production-like failures. Use when Codex is asked to investigate, debug, fix, or verify a bug and should reproduce the issue with ecosystem-appropriate tools, identify the cause, add or prove regression coverage, implement a targeted fix, run tests, and re-verify using the original reproduction path.
+description: Systematic bug-fixing workflow for reported defects, regressions, failing behavior, flaky tests, crashes, visual/UI bugs, platform-specific failures, stale or version-specific reports, log-reported errors, and production-like failures. Use when Codex is asked to investigate, debug, fix, or verify a bug and should confirm report freshness, reproduce the issue with ecosystem-appropriate tools, identify the cause, add or prove regression coverage, implement a targeted fix, run tests, and re-verify using the original reproduction path.
 ---
 
 # Fix Bugs
@@ -13,6 +13,14 @@ Do not start by editing product code. First understand the report, reproduce the
 
 If reproducing the bug is blocked by missing access, unavailable hardware, external credentials, or unclear requirements, state the blocker and use the closest defensible evidence path. Do not pretend the bug was reproduced.
 
+## Report Freshness
+
+Before assuming the current code still has the bug, determine whether the report has enough build, version, commit, deployment, device, runtime, dataset, or timestamp information to connect it to the code being inspected.
+
+For user-reported, production, QA, beta, screenshot-only, crash-report, or older issue reports, actively consider whether the bug may already be fixed in the current checkout or latest build. If the report might be stale, ask for or look up the relevant build information before making code changes when that information is needed to distinguish a current bug from an already-fixed one.
+
+If the bug does not reproduce on the current code or latest available build, do not invent a fix. Report that the issue appears unreproduced or possibly fixed, state the exact version/build/commit tested, and ask for the affected build details or a fresh reproduction artifact.
+
 ## Ecosystem-Native Debugging
 
 Before choosing a reproduction or diagnostic method, identify the debugging tools and evidence surfaces that fit the project's platform, framework, and runtime. Do not default to "check logs" as a generic step.
@@ -24,11 +32,15 @@ Examples include browser DevTools, Playwright traces, console/network panels, ac
 1. Understand the bug report.
    - Restate the expected behavior, actual behavior, affected environment, and user-visible impact.
    - Inspect attached screenshots, logs, stack traces, issue links, failing tests, or reproduction steps before theorizing.
+   - Identify the reported build, version, commit, deploy, device/runtime, data fixture, and report date when available.
+   - If freshness is ambiguous and could change the work, ask for build information or explain which current build/source state will be used for reproduction.
    - Identify the platform, runtime, framework, and project-local tooling likely to produce the best debugging evidence.
    - Ask a concise clarifying question only when the report is contradictory, missing a required artifact, or has materially different possible meanings. Otherwise proceed.
 
 2. Reproduce or prove the bug.
    - Select reproduction tools based on the ecosystem and bug type, then explain why that evidence path is appropriate.
+   - Attempt reproduction against the source/build that matches the report when possible; otherwise explicitly test the current checkout or latest available build.
+   - If current-code reproduction fails and the report may be stale, stop before editing and ask for the affected build/version or a fresh reproduction path.
    - For UI bugs, use the app, browser, simulator, screenshots, accessibility tree, console output, network traces, visual snapshots, or framework-specific devtools as appropriate.
    - For programmatic bugs, run the failing command or add a focused failing test that captures the reported behavior.
    - For crashes or runtime failures, capture the most diagnostic platform artifact: stack trace, crash report, device or process log, trace span, failing input, and command or interaction that triggers it.
@@ -69,6 +81,7 @@ Examples include browser DevTools, Playwright traces, console/network panels, ac
 
 When finishing, report:
 
+- The reported build/version/commit/deploy when known, and the build/source state actually tested.
 - The reproduction evidence used before the fix.
 - The ecosystem-specific debugging tools or artifacts used, if relevant.
 - The root cause, with file/function references when useful.
