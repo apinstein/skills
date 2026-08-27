@@ -1,0 +1,4 @@
+interface:
+  display_name: "Install iOS on Phone"
+  short_description: "Build, install, and launch iOS apps"
+  default_prompt: "Use $install-ios-on-phone to install this app on my phone."
