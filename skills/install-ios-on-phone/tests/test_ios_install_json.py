@@ -11,7 +11,16 @@ ios_install_json = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(ios_install_json)
 
 
-def device(identifier, name, *, connected=True, physical=True, platform="iOS"):
+def device(
+    identifier,
+    name,
+    *,
+    connection_state="connected",
+    pairing_state="paired",
+    transport_type="usb",
+    physical=True,
+    platform="iOS",
+):
     return {
         "identifier": identifier,
         "properties": {
@@ -20,7 +29,11 @@ def device(identifier, name, *, connected=True, physical=True, platform="iOS"):
                 "reality": "physical" if physical else "simulator",
                 "udid": f"UDID-{identifier}",
             },
-            "connection": {"state": "connected" if connected else "disconnected"},
+            "connection": {
+                "state": connection_state,
+                "pairingState": pairing_state,
+                "transportType": transport_type,
+            },
             "state": {"name": name},
         },
     }
@@ -41,7 +54,89 @@ class DeviceResolutionTests(unittest.TestCase):
 
         self.assertEqual(
             selected,
-            {"identifier": "CORE-1", "name": "Alan's iPhone"},
+            {
+                "identifier": "CORE-1",
+                "name": "Alan's iPhone",
+                "connectionState": "connected",
+                "pairingState": "paired",
+                "transportType": "usb",
+            },
+        )
+
+    def test_paired_disconnected_wireless_device_is_a_candidate(self):
+        document = listing(
+            device(
+                "CORE-1",
+                "Alan's iPhone",
+                connection_state="disconnected",
+                transport_type="localNetwork",
+            )
+        )
+
+        selected = ios_install_json.select_device(document, identifier="CORE-1")
+
+        self.assertEqual(selected["connectionState"], "disconnected")
+        self.assertEqual(selected["pairingState"], "paired")
+        self.assertEqual(selected["transportType"], "localNetwork")
+
+    def test_connection_descriptions_distinguish_wired_and_wireless(self):
+        wired = ios_install_json.select_device(
+            listing(device("WIRED", "Wired Phone")),
+            identifier="WIRED",
+        )
+        wireless = ios_install_json.select_device(
+            listing(
+                device(
+                    "WIRELESS",
+                    "Wireless Phone",
+                    transport_type="localNetwork",
+                )
+            ),
+            identifier="WIRELESS",
+        )
+
+        self.assertEqual(
+            ios_install_json.describe_device_connection(wired),
+            "connected by USB",
+        )
+        self.assertEqual(
+            ios_install_json.describe_device_connection(wireless),
+            "connected over local network",
+        )
+
+    def test_unpaired_and_unavailable_devices_are_reported_distinctly(self):
+        unpaired = ios_install_json.select_device(
+            listing(
+                device(
+                    "UNPAIRED",
+                    "Unpaired Phone",
+                    connection_state="disconnected",
+                    pairing_state="unpaired",
+                    transport_type="localNetwork",
+                )
+            ),
+            identifier="UNPAIRED",
+        )
+        unavailable = ios_install_json.select_device(
+            listing(
+                device(
+                    "UNAVAILABLE",
+                    "Unavailable Phone",
+                    connection_state="unavailable",
+                    transport_type="unknown",
+                )
+            ),
+            identifier="UNAVAILABLE",
+        )
+
+        self.assertEqual(
+            ios_install_json.describe_device_connection(unpaired),
+            "unpaired",
+        )
+        self.assertFalse(ios_install_json.device_can_activate_wirelessly(unpaired))
+        self.assertEqual(
+            ios_install_json.describe_device_connection(unavailable),
+            "known but unavailable",
         )
 
     def test_saved_identifier_survives_device_rename(self):
@@ -76,17 +171,19 @@ class DeviceResolutionTests(unittest.TestCase):
         self.assertEqual(context.exception.exit_code, 2)
         self.assertIn("choose", str(context.exception))
 
-    def test_only_connected_physical_ios_devices_are_candidates(self):
+    def test_all_known_physical_ios_devices_are_candidates(self):
         document = listing(
             device("CONNECTED", "Connected"),
-            device("OFFLINE", "Offline", connected=False),
+            device("OFFLINE", "Offline", connection_state="disconnected"),
             device("SIMULATOR", "Simulator", physical=False),
             device("WATCH", "Watch", platform="watchOS"),
         )
 
+        candidates = ios_install_json.physical_ios_devices(document)
+
         self.assertEqual(
-            ios_install_json.connected_physical_ios_devices(document),
-            [{"identifier": "CONNECTED", "name": "Connected"}],
+            [candidate["identifier"] for candidate in candidates],
+            ["CONNECTED", "OFFLINE"],
         )
 
 

@@ -21,8 +21,8 @@ guess when more than one viable application scheme or physical device remains.
    <skill-directory>/scripts/install-current-ios-app.sh "$PWD"
    ```
 
-3. If the local configuration has no saved device identifier, show the
-   connected physical devices and ask the user to choose one by its
+3. If the local configuration has no saved device identifier, show the known
+   physical devices and ask the user to choose one by its
    human-readable name. Do not ask the user to find or enter an identifier.
    Resolve the chosen name through CoreDevice and save only the resulting
    stable identifier:
@@ -34,12 +34,12 @@ guess when more than one viable application scheme or physical device remains.
    ```
 
    Ensure `.ios-install-skill.local.json` is ignored by Git before saving it.
-   If a saved identifier no longer matches a connected device, show the
+   If a saved identifier no longer matches a known device, show the
    current candidates and ask again; do not guess.
 4. Report the resolved project/workspace, scheme, configuration, device,
-   DerivedData policy, build result, bundle identifier, install result, and
-   launch result. If a stage fails, report that exact stage rather than
-   claiming installation succeeded.
+   connection transport, DerivedData policy, build result, bundle identifier,
+   install result, and launch result. If a stage fails, report that exact stage
+   rather than claiming installation succeeded.
 
 Use `--resolve-only` to inspect the complete selection without building,
 installing, or launching:
@@ -47,6 +47,21 @@ installing, or launching:
 ```zsh
 <skill-directory>/scripts/install-current-ios-app.sh --resolve-only "$PWD"
 ```
+
+## Device readiness
+
+Selection includes connected devices and known paired physical iOS devices.
+The installer still requires the selected device to become connected before
+continuing. For a uniquely selected paired device whose transport is
+`localNetwork`, it runs a bounded `devicectl device info details` probe and
+briefly re-lists devices to allow the wireless tunnel to appear. It never probes
+an ambiguous or unpaired device.
+
+Connectivity is rechecked after the build before installation and again before
+launch. A wireless device may be reactivated at either boundary. Failures name
+the blocked stage and distinguish USB, local-network, paired-but-unavailable,
+and unpaired states. `--resolve-only` may establish a paired wireless tunnel,
+but still does not build, install, or launch.
 
 ## Project configuration
 

@@ -7,6 +7,9 @@ readonly LOCAL_CONFIG_NAME=".ios-install-skill.local.json"
 readonly SCRIPT_NAME="${0:t}"
 readonly SCRIPT_DIRECTORY="${0:A:h}"
 readonly JSON_HELPER="$SCRIPT_DIRECTORY/ios-install-json.py"
+readonly DEVICE_PROBE_TIMEOUT_SECONDS=10
+readonly DEVICE_RELIST_ATTEMPTS=3
+readonly DEVICE_RELIST_DELAY_SECONDS=1
 
 fail() {
   print -u2 -- "error: $*"
@@ -249,7 +252,76 @@ if (( save_device_selection == 1 )) && [[ "$device_selection_source" != "IOS_DEV
   fail "--save-device-selection requires a human-readable IOS_DEVICE_NAME selection."
 fi
 
-device_listing=$(xcrun devicectl list devices --json-output - --omit-deprecated-fields-in-json --quiet)
+list_core_devices() {
+  xcrun devicectl list devices \
+    --json-output - \
+    --omit-deprecated-fields-in-json \
+    --quiet
+}
+
+apply_device_resolution() {
+  device_resolution="$1"
+  device_identifier=$(print -rn -- "$device_resolution" | plutil -extract identifier raw -o - -- -)
+  device_name=$(print -rn -- "$device_resolution" | plutil -extract name raw -o - -- -)
+  device_connection_description=$(
+    print -rn -- "$device_resolution" | python3 "$JSON_HELPER" describe-connection
+  )
+}
+
+refresh_selected_device() {
+  local refreshed_listing
+  local refreshed_resolution
+
+  refreshed_listing=$(list_core_devices) || return 1
+  refreshed_resolution=$(
+    print -rn -- "$refreshed_listing" \
+      | python3 "$JSON_HELPER" resolve-device --identifier "$device_identifier"
+  ) || return 1
+  apply_device_resolution "$refreshed_resolution"
+}
+
+ensure_device_connected() {
+  local next_stage="$1"
+  local refresh_first="${2:-1}"
+  local attempt
+
+  if (( refresh_first == 1 )); then
+    refresh_selected_device \
+      || fail "CoreDevice could not refresh $device_name before $next_stage."
+  fi
+
+  if print -rn -- "$device_resolution" | python3 "$JSON_HELPER" is-connected; then
+    print -- "Device ready before $next_stage: $device_name is $device_connection_description."
+    return 0
+  fi
+
+  if ! print -rn -- "$device_resolution" | python3 "$JSON_HELPER" can-activate-wirelessly; then
+    fail "$device_name is $device_connection_description and cannot continue to $next_stage. Connect or pair the device, then retry."
+  fi
+
+  print -- "Activating paired wireless device $device_name before $next_stage..."
+  if ! xcrun devicectl device info details \
+    --device "$device_identifier" \
+    --timeout "$DEVICE_PROBE_TIMEOUT_SECONDS" \
+    --quiet >/dev/null; then
+    fail "$device_name is paired wireless but activation failed before $next_stage within ${DEVICE_PROBE_TIMEOUT_SECONDS}s. Confirm the phone is unlocked, on the same local network, and available to Xcode."
+  fi
+
+  for (( attempt = 1; attempt <= DEVICE_RELIST_ATTEMPTS; attempt++ )); do
+    (( attempt == 1 )) || sleep "$DEVICE_RELIST_DELAY_SECONDS"
+    if refresh_selected_device \
+      && print -rn -- "$device_resolution" | python3 "$JSON_HELPER" is-connected; then
+      print -- "Device ready before $next_stage: $device_name is $device_connection_description."
+      return 0
+    fi
+  done
+
+  fail "$device_name remained $device_connection_description after wireless activation before $next_stage. Confirm the phone is unlocked, on the same local network, and available to Xcode."
+}
+
+if ! device_listing=$(list_core_devices); then
+  fail "CoreDevice could not enumerate physical iOS devices."
+fi
 if [[ -z "$device_name" && -z "$device_identifier" ]]; then
   print -rn -- "$device_listing" | python3 "$JSON_HELPER" list-devices
   fail "No saved device selection. Choose a device by name, then rerun with IOS_DEVICE_NAME and --save-device-selection."
@@ -259,10 +331,10 @@ device_arguments=()
 [[ -z "$device_identifier" ]] || device_arguments+=(--identifier "$device_identifier")
 if ! device_resolution=$(print -rn -- "$device_listing" | python3 "$JSON_HELPER" resolve-device "${device_arguments[@]}"); then
   print -rn -- "$device_listing" | python3 "$JSON_HELPER" list-devices
-  fail "The selected device is unavailable. Choose a connected device by name and save the replacement selection."
+  fail "The selected device is unknown. Choose a listed device by name and save the replacement selection."
 fi
-device_identifier=$(print -rn -- "$device_resolution" | plutil -extract identifier raw -o - -- -)
-device_name=$(print -rn -- "$device_resolution" | plutil -extract name raw -o - -- -)
+apply_device_resolution "$device_resolution"
+ensure_device_connected "build" 0
 
 save_resolved_device() {
   if git rev-parse --is-inside-work-tree >/dev/null 2>&1 && ! git check-ignore -q -- "$LOCAL_CONFIG_NAME"; then
@@ -293,6 +365,7 @@ print -- "  Container: $build_container ($container_source)"
 print -- "  Scheme: $scheme ($scheme_source)"
 print -- "  Configuration: $configuration ($configuration_source)"
 print -- "  Device: $device_name ($device_identifier)"
+print -- "  Connection: $device_connection_description"
 print -- "  DerivedData: $derived_data_description"
 
 if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
@@ -333,9 +406,11 @@ app_path="$target_build_directory/$wrapper_name"
 [[ -d "$app_path" ]] || fail "Resolved app bundle does not exist: $app_path"
 bundle_identifier=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app_path/Info.plist") || fail "Could not read the built app's bundle identifier."
 
+ensure_device_connected "install"
 print -- "Installing $bundle_identifier on $device_name..."
 xcrun devicectl device install app --device "$device_identifier" "$app_path"
 
+ensure_device_connected "launch"
 print -- "Launching $bundle_identifier on $device_name..."
 xcrun devicectl device process launch --device "$device_identifier" "$bundle_identifier"
 

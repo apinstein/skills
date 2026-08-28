@@ -147,7 +147,7 @@ def app_product():
     )
 
 
-def connected_physical_ios_devices(document):
+def physical_ios_devices(document):
     matches = []
     for device in document.get("result", {}).get("devices", []):
         properties = device.get("properties", {})
@@ -157,24 +157,63 @@ def connected_physical_ios_devices(document):
         if (
             hardware.get("platform") == "iOS"
             and hardware.get("reality") == "physical"
-            and connection.get("state") == "connected"
         ):
             matches.append(
                 {
                     "identifier": device.get("identifier"),
                     "name": state.get("name"),
+                    "connectionState": connection.get("state", "unknown"),
+                    "pairingState": connection.get("pairingState", "unknown"),
+                    "transportType": connection.get("transportType", "unknown"),
                 }
             )
     return matches
+
+
+def device_is_connected(device):
+    return device.get("connectionState") == "connected"
+
+
+def device_can_activate_wirelessly(device):
+    return (
+        not device_is_connected(device)
+        and device.get("pairingState") == "paired"
+        and device.get("transportType") == "localNetwork"
+    )
+
+
+def describe_device_connection(device):
+    connection_state = device.get("connectionState", "unknown")
+    pairing_state = device.get("pairingState", "unknown")
+    transport_type = device.get("transportType", "unknown")
+
+    if connection_state == "connected":
+        if transport_type == "localNetwork":
+            return "connected over local network"
+        if transport_type in {"usb", "USB", "wired"}:
+            return "connected by USB"
+        if transport_type == "unknown":
+            return "connected (transport unknown)"
+        return f"connected via {transport_type}"
+
+    if pairing_state == "unpaired":
+        return "unpaired"
+    if pairing_state != "paired":
+        return f"pairing state {pairing_state}; connection state {connection_state}"
+    if transport_type == "localNetwork":
+        return f"paired wireless but {connection_state}"
+    if connection_state == "unavailable":
+        return "known but unavailable"
+    return f"paired but {connection_state}"
 
 
 def select_device(document, name=None, identifier=None):
     if name and identifier:
         raise DeviceResolutionError("set only one device name or identifier", exit_code=2)
     if not name and not identifier:
-        raise DeviceResolutionError("choose a connected physical iOS device", exit_code=2)
+        raise DeviceResolutionError("choose a physical iOS device", exit_code=2)
 
-    matches = connected_physical_ios_devices(document)
+    matches = physical_ios_devices(document)
     if name:
         matches = [device for device in matches if device["name"] == name]
     if identifier:
@@ -186,14 +225,16 @@ def select_device(document, name=None, identifier=None):
     if not matches:
         selector = name or identifier or "automatic discovery"
         raise DeviceResolutionError(
-            f"no connected physical iOS device matches {selector!r}"
+            f"no known physical iOS device matches {selector!r}"
         )
 
     candidates = "\n".join(
-        f"  {device['name']} ({device['identifier']})" for device in matches
+        f"  {device['name']} ({device['identifier']}): "
+        f"{describe_device_connection(device)}"
+        for device in matches
     )
     raise DeviceResolutionError(
-        f"multiple connected physical iOS devices match:\n{candidates}",
+        f"multiple physical iOS devices match:\n{candidates}",
         exit_code=2,
     )
 
@@ -208,13 +249,24 @@ def resolve_device(name, identifier):
 
 
 def list_devices():
-    devices = connected_physical_ios_devices(read_json())
+    devices = physical_ios_devices(read_json())
     if not devices:
-        print("No connected physical iOS devices were found.")
+        print("No known physical iOS devices were found.")
         return
-    print("Connected physical iOS devices:")
+    print("Known physical iOS devices:")
     for device in devices:
-        print(f"  {device['name']} ({device['identifier']})")
+        print(
+            f"  {device['name']} ({device['identifier']}): "
+            f"{describe_device_connection(device)}"
+        )
+
+
+def describe_connection():
+    print(describe_device_connection(read_json()))
+
+
+def check_device(predicate):
+    raise SystemExit(0 if predicate(read_json()) else 1)
 
 
 def main():
@@ -229,6 +281,9 @@ def main():
     device_parser.add_argument("--name")
     device_parser.add_argument("--identifier")
     subparsers.add_parser("list-devices")
+    subparsers.add_parser("describe-connection")
+    subparsers.add_parser("is-connected")
+    subparsers.add_parser("can-activate-wirelessly")
     validate_parser = subparsers.add_parser("validate-config")
     validate_parser.add_argument("kind", choices=("project", "local"))
     validate_parser.add_argument("path")
@@ -247,6 +302,12 @@ def main():
         resolve_device(arguments.name, arguments.identifier)
     elif arguments.command == "list-devices":
         list_devices()
+    elif arguments.command == "describe-connection":
+        describe_connection()
+    elif arguments.command == "is-connected":
+        check_device(device_is_connected)
+    elif arguments.command == "can-activate-wirelessly":
+        check_device(device_can_activate_wirelessly)
     elif arguments.command == "validate-config":
         validate_config(arguments.path, arguments.kind)
     elif arguments.command == "save-device-config":
