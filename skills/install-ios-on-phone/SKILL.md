@@ -8,7 +8,8 @@ description: Build, code-sign, install, and launch the current iOS app on a conn
 Deploy the current repository's iOS application to a connected physical iOS
 device. Resolve the project, scheme, configuration, and device from explicit
 overrides, project-root configuration, or Xcode/CoreDevice discovery. Never
-guess when more than one viable application scheme or physical device remains.
+guess between viable application schemes. For registered development devices,
+make and report a best-effort device choice instead of asking for confirmation.
 
 ## Workflow
 
@@ -21,11 +22,20 @@ guess when more than one viable application scheme or physical device remains.
    <skill-directory>/scripts/install-current-ios-app.sh "$PWD"
    ```
 
-3. If the local configuration has no saved device identifier, show the known
-   physical devices and ask the user to choose one by its
-   human-readable name. Do not ask the user to find or enter an identifier.
-   Resolve the chosen name through CoreDevice and save only the resulting
-   stable identifier:
+3. If the request contains an approximate device label such as “Alan's phone,”
+   pass it as `IOS_DEVICE_HINT`; the installer normalizes common wording such as
+   “phone” versus “iPhone.” Otherwise let the installer rank the known physical
+   devices automatically. Do not stop to ask for confirmation when a plausible
+   registered development device can be selected. The installer reports which
+   device it chose and why before building:
+
+   ```zsh
+   IOS_DEVICE_HINT="Alan's phone" \
+     <skill-directory>/scripts/install-current-ios-app.sh "$PWD"
+   ```
+
+   Use an exact human-readable name only when the user makes an explicit choice.
+   To persist that exact choice, save only the resulting stable identifier:
 
    ```zsh
    IOS_DEVICE_NAME="My iPhone" \
@@ -34,8 +44,8 @@ guess when more than one viable application scheme or physical device remains.
    ```
 
    Ensure `.ios-install-skill.local.json` is ignored by Git before saving it.
-   If a saved identifier no longer matches a known device, show the
-   current candidates and ask again; do not guess.
+   If a saved identifier no longer matches a known device, report the mismatch.
+   Do not silently override an explicit or saved stable identifier.
 4. Report the resolved project/workspace, scheme, configuration, device,
    connection transport, DerivedData policy, build result, bundle identifier,
    install result, and launch result. If a stage fails, report that exact stage
@@ -51,11 +61,18 @@ installing, or launching:
 ## Device readiness
 
 Selection includes connected devices and known paired physical iOS devices.
+An explicit stable identifier remains authoritative. Without one, an optional
+natural-language hint ranks name and device-type similarity first; otherwise
+the installer ranks connection readiness and recent CoreDevice activity. Exact
+duplicate names are ranked the same way. Ties are resolved deterministically.
+The chosen device and selection reason are always reported.
+
 The installer still requires the selected device to become connected before
-continuing. For a uniquely selected paired device whose transport is
+continuing. For a selected paired device whose transport is
 `localNetwork`, it runs a bounded `devicectl device info details` probe and
-briefly re-lists devices to allow the wireless tunnel to appear. It never probes
-an ambiguous or unpaired device.
+briefly re-lists devices to allow the wireless tunnel to appear. Ranking chooses
+one candidate before activation, and the installer never probes an unpaired
+device.
 
 Connectivity is rechecked after the build before installation and again before
 launch. A wireless device may be reactivated at either boundary. Failures name
@@ -104,16 +121,17 @@ Build-setting resolution precedence is:
 3. `.ios-install-skill.json`.
 4. Unambiguous Xcode discovery.
 
-Device resolution uses a one-run `IOS_DEVICE_NAME` choice or a saved local
-`deviceIdentifier`. It does not silently choose a connected device on first
-run, even when only one is present.
+Device resolution honors a one-run exact `IOS_DEVICE_NAME` or
+`IOS_DEVICE_IDENTIFIER`, then `IOS_DEVICE_HINT`, then a saved local
+`deviceIdentifier`, and finally an automatic best guess. Automatic selection is
+per run and does not write local configuration.
 
 Supported environment overrides are `IOS_PROJECT`, `IOS_WORKSPACE`,
-`IOS_SCHEME`, `IOS_CONFIGURATION`, `IOS_DEVICE_NAME`,
+`IOS_SCHEME`, `IOS_CONFIGURATION`, `IOS_DEVICE_NAME`, `IOS_DEVICE_HINT`,
 `IOS_DEVICE_IDENTIFIER`, and `IOS_DERIVED_DATA_PATH`.
-`IOS_DEVICE_IDENTIFIER` is retained for automation and recovery; ordinary
-interactive use selects by name and lets the script persist the resolved
-identifier.
+`IOS_DEVICE_IDENTIFIER` is retained for automation and recovery. Ordinary
+interactive use should rely on a hint or automatic ranking; use an exact name
+with `--save-device-selection` only when persistence is desired.
 
 ## Build and generation boundaries
 

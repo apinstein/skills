@@ -41,6 +41,39 @@ def device_listing(
     }
 
 
+def listed_device(
+    identifier,
+    name,
+    *,
+    connection_state="connected",
+    pairing_state="paired",
+    transport_type="localNetwork",
+    device_type="iPhone",
+    last_connection_date=0,
+):
+    return {
+        "identifier": identifier,
+        "properties": {
+            "connection": {
+                "state": connection_state,
+                "pairingState": pairing_state,
+                "transportType": transport_type,
+                "lastConnectionDate": last_connection_date,
+            },
+            "hardware": {
+                "platform": "iOS",
+                "reality": "physical",
+                "deviceType": device_type,
+            },
+            "state": {"name": name},
+        },
+    }
+
+
+def device_list(*devices):
+    return {"result": {"devices": list(devices)}}
+
+
 def write_executable(path, contents):
     path.write_text(contents, encoding="utf-8")
     path.chmod(0o755)
@@ -123,7 +156,14 @@ print -r -- "sleep $*" >> "$FAKE_COMMAND_LOG"
 """,
         )
 
-    def run_installer(self, listings, *, probe_failure=False):
+    def run_installer(
+        self,
+        listings,
+        *,
+        probe_failure=False,
+        device_identifier="CORE-1",
+        device_hint=None,
+    ):
         self.listings_path.write_text(json.dumps(listings), encoding="utf-8")
         build_settings = [
             {
@@ -138,6 +178,8 @@ print -r -- "sleep $*" >> "$FAKE_COMMAND_LOG"
             }
         ]
         environment = os.environ.copy()
+        for key in ("IOS_DEVICE_HINT", "IOS_DEVICE_IDENTIFIER", "IOS_DEVICE_NAME"):
+            environment.pop(key, None)
         environment.update(
             {
                 "FAKE_BUILD_SETTINGS": json.dumps(build_settings),
@@ -146,12 +188,15 @@ print -r -- "sleep $*" >> "$FAKE_COMMAND_LOG"
                 "FAKE_DEVICE_LISTING_INDEX": str(self.listing_index_path),
                 "FAKE_PROBE_FAILURE": "1" if probe_failure else "0",
                 "IOS_CONFIGURATION": "Debug",
-                "IOS_DEVICE_IDENTIFIER": "CORE-1",
                 "IOS_PROJECT": "TestApp.xcodeproj",
                 "IOS_SCHEME": "TestApp",
                 "PATH": f"{self.fake_bin}:{environment['PATH']}",
             }
         )
+        if device_identifier:
+            environment["IOS_DEVICE_IDENTIFIER"] = device_identifier
+        if device_hint:
+            environment["IOS_DEVICE_HINT"] = device_hint
         return subprocess.run(
             [str(INSTALLER_PATH), str(self.repository)],
             capture_output=True,
@@ -237,6 +282,59 @@ print -r -- "sleep $*" >> "$FAKE_COMMAND_LOG"
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stdout.count("Activating paired wireless device"), 1)
         self.assertIn("sleep 1", self.command_log())
+
+    def test_first_run_automatically_selects_active_phone_and_reports_why(self):
+        listing = device_list(
+            listed_device(
+                "ACTIVE",
+                "Alan's iPhone",
+                last_connection_date=20,
+            ),
+            listed_device(
+                "DEV",
+                "Alan's Dev Phone",
+                connection_state="disconnected",
+                last_connection_date=30,
+            ),
+            listed_device(
+                "IPAD",
+                "Alan's iPad",
+                connection_state="unavailable",
+                transport_type="unknown",
+                device_type="iPad",
+                last_connection_date=40,
+            ),
+        )
+
+        result = self.run_installer([listing], device_identifier=None)
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("Device: Alan's iPhone (ACTIVE)", result.stdout)
+        self.assertIn(
+            "Selection reason: automatic best guess by connection readiness",
+            result.stdout,
+        )
+
+    def test_natural_language_device_hint_is_forwarded_and_reported(self):
+        listing = device_list(
+            listed_device("ACTIVE", "Alan’s iPhone"),
+            listed_device(
+                "DEV",
+                "Alan’s Dev Phone",
+                connection_state="disconnected",
+            ),
+        )
+
+        result = self.run_installer(
+            [listing],
+            device_identifier=None,
+            device_hint="Alan's phone",
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("Device: Alan’s iPhone (ACTIVE)", result.stdout)
+        self.assertIn("best name/type match for hint", result.stdout)
+        self.assertIn("Alan's phone", result.stdout)
 
 
 if __name__ == "__main__":

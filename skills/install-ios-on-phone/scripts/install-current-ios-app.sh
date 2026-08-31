@@ -227,14 +227,21 @@ fi
 
 device_name="${IOS_DEVICE_NAME:-}"
 device_identifier="${IOS_DEVICE_IDENTIFIER:-}"
-[[ -z "$device_name" || -z "$device_identifier" ]] || fail "Set only one of IOS_DEVICE_NAME or IOS_DEVICE_IDENTIFIER."
+device_hint="${IOS_DEVICE_HINT:-}"
+device_selector_count=0
+[[ -z "$device_name" ]] || (( device_selector_count += 1 ))
+[[ -z "$device_identifier" ]] || (( device_selector_count += 1 ))
+[[ -z "$device_hint" ]] || (( device_selector_count += 1 ))
+(( device_selector_count <= 1 )) || fail "Set only one of IOS_DEVICE_NAME, IOS_DEVICE_IDENTIFIER, or IOS_DEVICE_HINT."
 device_selection_source=""
 if [[ -n "$device_name" ]]; then
   device_selection_source="IOS_DEVICE_NAME"
 elif [[ -n "$device_identifier" ]]; then
   device_selection_source="IOS_DEVICE_IDENTIFIER"
+elif [[ -n "$device_hint" ]]; then
+  device_selection_source="IOS_DEVICE_HINT"
 fi
-if [[ -z "$device_name" && -z "$device_identifier" ]]; then
+if [[ -z "$device_name" && -z "$device_identifier" && -z "$device_hint" ]]; then
   if [[ -f "$local_config" ]]; then
     device_identifier=$(plutil -extract deviceIdentifier raw -o - -- "$local_config" 2>/dev/null || true)
     if [[ -n "$device_identifier" ]]; then
@@ -260,12 +267,18 @@ list_core_devices() {
 }
 
 apply_device_resolution() {
+  local preserve_selection_reason="${2:-0}"
   device_resolution="$1"
   device_identifier=$(print -rn -- "$device_resolution" | plutil -extract identifier raw -o - -- -)
   device_name=$(print -rn -- "$device_resolution" | plutil -extract name raw -o - -- -)
   device_connection_description=$(
     print -rn -- "$device_resolution" | python3 "$JSON_HELPER" describe-connection
   )
+  if (( preserve_selection_reason == 0 )); then
+    device_selection_reason=$(
+      print -rn -- "$device_resolution" | plutil -extract selectionReason raw -o - -- -
+    )
+  fi
 }
 
 refresh_selected_device() {
@@ -277,7 +290,7 @@ refresh_selected_device() {
     print -rn -- "$refreshed_listing" \
       | python3 "$JSON_HELPER" resolve-device --identifier "$device_identifier"
   ) || return 1
-  apply_device_resolution "$refreshed_resolution"
+  apply_device_resolution "$refreshed_resolution" 1
 }
 
 ensure_device_connected() {
@@ -322,18 +335,17 @@ ensure_device_connected() {
 if ! device_listing=$(list_core_devices); then
   fail "CoreDevice could not enumerate physical iOS devices."
 fi
-if [[ -z "$device_name" && -z "$device_identifier" ]]; then
-  print -rn -- "$device_listing" | python3 "$JSON_HELPER" list-devices
-  fail "No saved device selection. Choose a device by name, then rerun with IOS_DEVICE_NAME and --save-device-selection."
-fi
 device_arguments=()
 [[ -z "$device_name" ]] || device_arguments+=(--name "$device_name")
 [[ -z "$device_identifier" ]] || device_arguments+=(--identifier "$device_identifier")
+[[ -z "$device_hint" ]] || device_arguments+=(--hint "$device_hint")
 if ! device_resolution=$(print -rn -- "$device_listing" | python3 "$JSON_HELPER" resolve-device "${device_arguments[@]}"); then
   print -rn -- "$device_listing" | python3 "$JSON_HELPER" list-devices
-  fail "The selected device is unknown. Choose a listed device by name and save the replacement selection."
+  fail "CoreDevice could not choose a usable physical iOS device."
 fi
 apply_device_resolution "$device_resolution"
+print -- "Selected device: $device_name ($device_identifier)"
+print -- "Selection reason: $device_selection_reason"
 ensure_device_connected "build" 0
 
 save_resolved_device() {

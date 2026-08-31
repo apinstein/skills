@@ -18,6 +18,8 @@ def device(
     connection_state="connected",
     pairing_state="paired",
     transport_type="usb",
+    device_type="iPhone",
+    last_connection_date=0,
     physical=True,
     platform="iOS",
 ):
@@ -27,12 +29,14 @@ def device(
             "hardware": {
                 "platform": platform,
                 "reality": "physical" if physical else "simulator",
+                "deviceType": device_type,
                 "udid": f"UDID-{identifier}",
             },
             "connection": {
                 "state": connection_state,
                 "pairingState": pairing_state,
                 "transportType": transport_type,
+                "lastConnectionDate": last_connection_date,
             },
             "state": {"name": name},
         },
@@ -52,16 +56,12 @@ class DeviceResolutionTests(unittest.TestCase):
             name="Alan's iPhone",
         )
 
-        self.assertEqual(
-            selected,
-            {
-                "identifier": "CORE-1",
-                "name": "Alan's iPhone",
-                "connectionState": "connected",
-                "pairingState": "paired",
-                "transportType": "usb",
-            },
-        )
+        self.assertEqual(selected["identifier"], "CORE-1")
+        self.assertEqual(selected["name"], "Alan's iPhone")
+        self.assertEqual(selected["connectionState"], "connected")
+        self.assertEqual(selected["pairingState"], "paired")
+        self.assertEqual(selected["transportType"], "usb")
+        self.assertIn("exact name", selected["selectionReason"])
 
     def test_paired_disconnected_wireless_device_is_a_candidate(self):
         document = listing(
@@ -149,27 +149,91 @@ class DeviceResolutionTests(unittest.TestCase):
 
         self.assertEqual(selected["name"], "Renamed Phone")
 
-    def test_duplicate_human_readable_names_are_ambiguous(self):
+    def test_saved_identifier_remains_authoritative_over_active_device(self):
         document = listing(
-            device("CORE-1", "iPhone"),
-            device("CORE-2", "iPhone"),
+            device("ACTIVE", "Alan's iPhone"),
+            device(
+                "SAVED",
+                "Alan's Dev Phone",
+                connection_state="disconnected",
+                transport_type="localNetwork",
+            ),
         )
 
-        with self.assertRaises(ios_install_json.DeviceResolutionError) as context:
-            ios_install_json.select_device(document, name="iPhone")
+        selected = ios_install_json.select_device(document, identifier="SAVED")
 
-        self.assertEqual(context.exception.exit_code, 2)
-        self.assertIn("CORE-1", str(context.exception))
-        self.assertIn("CORE-2", str(context.exception))
+        self.assertEqual(selected["identifier"], "SAVED")
+        self.assertEqual(selected["selectionReason"], "stable identifier match")
 
-    def test_first_run_requires_explicit_device_choice(self):
-        document = listing(device("CORE-1", "Only Phone"))
+    def test_duplicate_human_readable_names_prefer_connected_device(self):
+        document = listing(
+            device(
+                "OFFLINE",
+                "iPhone",
+                connection_state="disconnected",
+                transport_type="localNetwork",
+            ),
+            device("ACTIVE", "iPhone"),
+        )
 
-        with self.assertRaises(ios_install_json.DeviceResolutionError) as context:
-            ios_install_json.select_device(document)
+        selected = ios_install_json.select_device(document, name="iPhone")
 
-        self.assertEqual(context.exception.exit_code, 2)
-        self.assertIn("choose", str(context.exception))
+        self.assertEqual(selected["identifier"], "ACTIVE")
+        self.assertIn("exact name", selected["selectionReason"])
+
+    def test_first_run_prefers_active_phone_over_offline_devices(self):
+        document = listing(
+            device(
+                "ACTIVE",
+                "Alan's iPhone",
+                last_connection_date=20,
+            ),
+            device(
+                "DEV",
+                "Alan's Dev Phone",
+                connection_state="disconnected",
+                transport_type="localNetwork",
+                last_connection_date=30,
+            ),
+            device(
+                "IPAD",
+                "Alan's iPad",
+                connection_state="unavailable",
+                device_type="iPad",
+                last_connection_date=40,
+            ),
+        )
+
+        selected = ios_install_json.select_device(document)
+
+        self.assertEqual(selected["identifier"], "ACTIVE")
+        self.assertIn("connection readiness", selected["selectionReason"])
+
+    def test_natural_language_hint_matches_iphone_and_prefers_active_match(self):
+        document = listing(
+            device("ACTIVE", "Alan’s iPhone"),
+            device(
+                "DEV",
+                "Alan’s Dev Phone",
+                connection_state="disconnected",
+                transport_type="localNetwork",
+            ),
+        )
+
+        selected = ios_install_json.select_device(document, hint="Alan's phone")
+
+        self.assertEqual(selected["identifier"], "ACTIVE")
+        self.assertIn("Alan's phone", selected["selectionReason"])
+
+    def test_natural_language_hint_can_select_ipad_over_connected_phone(self):
+        document = listing(
+            device("PHONE", "Alan's iPhone"),
+            device("IPAD", "Alan's iPad", device_type="iPad"),
+        )
+
+        selected = ios_install_json.select_device(document, hint="Alan's iPad")
+
+        self.assertEqual(selected["identifier"], "IPAD")
 
     def test_all_known_physical_ios_devices_are_candidates(self):
         document = listing(
