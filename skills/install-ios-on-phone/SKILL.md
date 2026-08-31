@@ -15,27 +15,35 @@ make and report a best-effort device choice instead of asking for confirmation.
 
 1. Work from the intended repository or worktree. Report its branch, commit,
    and material uncommitted files before installing.
-2. Resolve `scripts/install-current-ios-app.sh` relative to this `SKILL.md` and
-   run it from that exact checkout:
+2. Resolve the skill directory relative to this `SKILL.md`, then enumerate the
+   known physical iOS devices before choosing one:
 
    ```zsh
-   <skill-directory>/scripts/install-current-ios-app.sh "$PWD"
+   <skill-directory>/scripts/install-current-ios-app.sh --list-devices "$PWD"
    ```
 
-3. If the request contains an approximate device label such as “Alan's phone,”
-   pass it as `IOS_DEVICE_HINT`; the installer normalizes common wording such as
-   “phone” versus “iPhone.” Otherwise let the installer rank the known physical
-   devices automatically. Do not stop to ask for confirmation when a plausible
-   registered development device can be selected. The installer reports which
-   device it chose and why before building:
+3. Choose the device yourself from that structured list using the user's words
+   and the conversation's context. Treat wording such as “phone” versus
+   “iPhone” semantically; do not pass an approximate label to a deterministic
+   helper. Consider device kind and name first, then connection readiness,
+   pairing/transport state, and recent CoreDevice activity. Prefer a currently
+   connected matching phone over a similarly named disconnected development
+   phone. Do not ask for confirmation merely because multiple registered
+   development devices are listed. When there is a plausible best choice, tell
+   the user which device you chose and why, then pass its exact stable identifier
+   to the installer:
 
    ```zsh
-   IOS_DEVICE_HINT="Alan's phone" \
+   IOS_DEVICE_IDENTIFIER="<identifier-from-device-list>" \
      <skill-directory>/scripts/install-current-ios-app.sh "$PWD"
    ```
 
-   Use an exact human-readable name only when the user makes an explicit choice.
-   To persist that exact choice, save only the resulting stable identifier:
+   Honor an explicit stable identifier or a valid saved local identifier unless
+   the current request points to another device. Ask only when no candidate is a
+   plausible match or choosing one would contradict the user's explicit request.
+
+   Use an exact human-readable name only when the user explicitly chooses it. To
+   persist that exact choice, save only the resulting stable identifier:
 
    ```zsh
    IOS_DEVICE_NAME="My iPhone" \
@@ -60,19 +68,18 @@ installing, or launching:
 
 ## Device readiness
 
-Selection includes connected devices and known paired physical iOS devices.
-An explicit stable identifier remains authoritative. Without one, an optional
-natural-language hint ranks name and device-type similarity first; otherwise
-the installer ranks connection readiness and recent CoreDevice activity. Exact
-duplicate names are ranked the same way. Ties are resolved deterministically.
-The chosen device and selection reason are always reported.
+Discovery includes connected devices and known paired physical iOS devices and
+returns their stable identifiers, names, types, connection states, pairing
+states, transports, and recent CoreDevice activity. Codex—not the Python
+helper—uses that evidence plus the user's natural language and conversational
+context to make the best-effort choice. The installer accepts the resulting
+exact name or stable identifier and verifies that it resolves uniquely.
 
 The installer still requires the selected device to become connected before
 continuing. For a selected paired device whose transport is
 `localNetwork`, it runs a bounded `devicectl device info details` probe and
-briefly re-lists devices to allow the wireless tunnel to appear. Ranking chooses
-one candidate before activation, and the installer never probes an unpaired
-device.
+briefly re-lists devices to allow the wireless tunnel to appear. The installer
+never probes an unpaired device.
 
 Connectivity is rechecked after the build before installation and again before
 launch. A wireless device may be reactivated at either boundary. Failures name
@@ -122,16 +129,17 @@ Build-setting resolution precedence is:
 4. Unambiguous Xcode discovery.
 
 Device resolution honors a one-run exact `IOS_DEVICE_NAME` or
-`IOS_DEVICE_IDENTIFIER`, then `IOS_DEVICE_HINT`, then a saved local
-`deviceIdentifier`, and finally an automatic best guess. Automatic selection is
-per run and does not write local configuration.
+`IOS_DEVICE_IDENTIFIER`, then a saved local `deviceIdentifier`. If none exists,
+Codex enumerates the candidates, chooses one, and reruns with its exact
+`IOS_DEVICE_IDENTIFIER`. The deterministic helper never interprets a
+natural-language device hint or silently ranks multiple candidates.
 
 Supported environment overrides are `IOS_PROJECT`, `IOS_WORKSPACE`,
-`IOS_SCHEME`, `IOS_CONFIGURATION`, `IOS_DEVICE_NAME`, `IOS_DEVICE_HINT`,
-`IOS_DEVICE_IDENTIFIER`, and `IOS_DERIVED_DATA_PATH`.
-`IOS_DEVICE_IDENTIFIER` is retained for automation and recovery. Ordinary
-interactive use should rely on a hint or automatic ranking; use an exact name
-with `--save-device-selection` only when persistence is desired.
+`IOS_SCHEME`, `IOS_CONFIGURATION`, `IOS_DEVICE_NAME`,
+`IOS_DEVICE_IDENTIFIER`, and `IOS_DERIVED_DATA_PATH`. Ordinary interactive use
+should select from the structured device listing and pass the exact identifier;
+use an exact name with `--save-device-selection` only when persistence is
+desired.
 
 ## Build and generation boundaries
 

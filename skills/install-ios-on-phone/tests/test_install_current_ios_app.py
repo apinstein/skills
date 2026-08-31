@@ -113,6 +113,9 @@ with log_path.open("a", encoding="utf-8") as stream:
     stream.write("xcrun " + " ".join(arguments) + "\n")
 
 if arguments[:3] == ["devicectl", "list", "devices"]:
+    if os.environ.get("FAKE_LIST_FAILURE") == "1":
+        print("simulated CoreDevice enumeration failure", file=sys.stderr)
+        raise SystemExit(1)
     listings = json.loads(Path(os.environ["FAKE_DEVICE_LISTINGS"]).read_text())
     index_path = Path(os.environ["FAKE_DEVICE_LISTING_INDEX"])
     index = int(index_path.read_text()) if index_path.exists() else 0
@@ -160,9 +163,10 @@ print -r -- "sleep $*" >> "$FAKE_COMMAND_LOG"
         self,
         listings,
         *,
+        list_failure=False,
         probe_failure=False,
         device_identifier="CORE-1",
-        device_hint=None,
+        installer_options=None,
     ):
         self.listings_path.write_text(json.dumps(listings), encoding="utf-8")
         build_settings = [
@@ -178,7 +182,7 @@ print -r -- "sleep $*" >> "$FAKE_COMMAND_LOG"
             }
         ]
         environment = os.environ.copy()
-        for key in ("IOS_DEVICE_HINT", "IOS_DEVICE_IDENTIFIER", "IOS_DEVICE_NAME"):
+        for key in ("IOS_DEVICE_IDENTIFIER", "IOS_DEVICE_NAME"):
             environment.pop(key, None)
         environment.update(
             {
@@ -186,6 +190,7 @@ print -r -- "sleep $*" >> "$FAKE_COMMAND_LOG"
                 "FAKE_COMMAND_LOG": str(self.log_path),
                 "FAKE_DEVICE_LISTINGS": str(self.listings_path),
                 "FAKE_DEVICE_LISTING_INDEX": str(self.listing_index_path),
+                "FAKE_LIST_FAILURE": "1" if list_failure else "0",
                 "FAKE_PROBE_FAILURE": "1" if probe_failure else "0",
                 "IOS_CONFIGURATION": "Debug",
                 "IOS_PROJECT": "TestApp.xcodeproj",
@@ -195,10 +200,8 @@ print -r -- "sleep $*" >> "$FAKE_COMMAND_LOG"
         )
         if device_identifier:
             environment["IOS_DEVICE_IDENTIFIER"] = device_identifier
-        if device_hint:
-            environment["IOS_DEVICE_HINT"] = device_hint
         return subprocess.run(
-            [str(INSTALLER_PATH), str(self.repository)],
+            [str(INSTALLER_PATH), *(installer_options or []), str(self.repository)],
             capture_output=True,
             check=False,
             env=environment,
@@ -283,7 +286,7 @@ print -r -- "sleep $*" >> "$FAKE_COMMAND_LOG"
         self.assertEqual(result.stdout.count("Activating paired wireless device"), 1)
         self.assertIn("sleep 1", self.command_log())
 
-    def test_first_run_automatically_selects_active_phone_and_reports_why(self):
+    def test_agent_selected_identifier_targets_that_device(self):
         listing = device_list(
             listed_device(
                 "ACTIVE",
@@ -306,16 +309,13 @@ print -r -- "sleep $*" >> "$FAKE_COMMAND_LOG"
             ),
         )
 
-        result = self.run_installer([listing], device_identifier=None)
+        result = self.run_installer([listing], device_identifier="ACTIVE")
 
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("Device: Alan's iPhone (ACTIVE)", result.stdout)
-        self.assertIn(
-            "Selection reason: automatic best guess by connection readiness",
-            result.stdout,
-        )
+        self.assertIn("Selection reason: stable identifier match", result.stdout)
 
-    def test_natural_language_device_hint_is_forwarded_and_reported(self):
+    def test_list_devices_mode_returns_structured_candidates_without_xcode(self):
         listing = device_list(
             listed_device("ACTIVE", "Alan’s iPhone"),
             listed_device(
@@ -328,13 +328,68 @@ print -r -- "sleep $*" >> "$FAKE_COMMAND_LOG"
         result = self.run_installer(
             [listing],
             device_identifier=None,
-            device_hint="Alan's phone",
+            installer_options=["--list-devices"],
         )
 
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn("Device: Alan’s iPhone (ACTIVE)", result.stdout)
-        self.assertIn("best name/type match for hint", result.stdout)
-        self.assertIn("Alan's phone", result.stdout)
+        candidates = json.loads(result.stdout)
+        self.assertEqual(
+            [candidate["identifier"] for candidate in candidates],
+            ["ACTIVE", "DEV"],
+        )
+        self.assertEqual(candidates[0]["connectionState"], "connected")
+        self.assertFalse(
+            any(command.startswith("xcodebuild ") for command in self.command_log())
+        )
+
+    def test_list_devices_mode_does_not_mask_coredevice_failure(self):
+        result = self.run_installer(
+            [device_list()],
+            device_identifier=None,
+            installer_options=["--list-devices"],
+            list_failure=True,
+        )
+
+        self.assertEqual(result.returncode, 1)
+        self.assertEqual(result.stdout, "")
+        self.assertIn("simulated CoreDevice enumeration failure", result.stderr)
+        self.assertIn(
+            "CoreDevice could not enumerate physical iOS devices",
+            result.stderr,
+        )
+
+    def test_missing_selection_lists_candidates_for_codex(self):
+        listing = device_list(
+            listed_device("ACTIVE", "Alan’s iPhone"),
+            listed_device(
+                "DEV",
+                "Alan’s Dev Phone",
+                connection_state="disconnected",
+            ),
+        )
+
+        result = self.run_installer([listing], device_identifier=None)
+
+        self.assertEqual(result.returncode, 1)
+        self.assertIn(
+            "Alan’s iPhone (ACTIVE): connected over local network",
+            result.stdout,
+        )
+        self.assertIn(
+            "Alan’s Dev Phone (DEV): paired wireless but disconnected",
+            result.stdout,
+        )
+        self.assertIn(
+            "Codex should choose a listed device and rerun with its exact "
+            "IOS_DEVICE_IDENTIFIER",
+            result.stderr,
+        )
+        self.assertFalse(
+            any(
+                command.startswith("xcodebuild build ")
+                for command in self.command_log()
+            )
+        )
 
 
 if __name__ == "__main__":

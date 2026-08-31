@@ -1,13 +1,10 @@
 #!/usr/bin/env python3
 
 import argparse
-import difflib
 import json
 import os
-import re
 import sys
 import tempfile
-import unicodedata
 from pathlib import Path
 
 
@@ -212,148 +209,63 @@ def describe_device_connection(device):
     return f"paired but {connection_state}"
 
 
-def normalize_device_text(value):
-    normalized = unicodedata.normalize("NFKD", value or "").casefold()
-    tokens = re.findall(r"[a-z0-9]+", normalized)
-    normalized_tokens = []
-    for token in tokens:
-        if token == "s":
-            continue
-        if token == "iphone":
-            token = "phone"
-        if token not in normalized_tokens:
-            normalized_tokens.append(token)
-    return " ".join(normalized_tokens)
-
-
-def connection_readiness(device):
-    if device_is_connected(device):
-        return 3
-    if device_can_activate_wirelessly(device):
-        return 2
-    if device.get("pairingState") == "paired":
-        return 1
-    return 0
-
-
-def hint_match(device, hint):
-    normalized_hint = normalize_device_text(hint)
-    normalized_device = normalize_device_text(
-        f"{device.get('name', '')} {device.get('deviceType', '')}"
-    )
-    hint_tokens = set(normalized_hint.split())
-    device_tokens = set(normalized_device.split())
-    coverage = (
-        len(hint_tokens & device_tokens) / len(hint_tokens)
-        if hint_tokens
-        else 0
-    )
-    similarity = difflib.SequenceMatcher(
-        None,
-        normalized_hint,
-        normalized_device,
-    ).ratio()
-    return coverage, similarity
-
-
-def device_rank(device, hint=None):
-    last_connection_date = device.get("lastConnectionDate", 0)
-    if not isinstance(last_connection_date, (int, float)):
-        last_connection_date = 0
-    stable_tiebreaker = (
-        normalize_device_text(device.get("name", "")),
-        device.get("identifier", ""),
-    )
-    readiness = connection_readiness(device)
-    if hint:
-        return (
-            *hint_match(device, hint),
-            readiness,
-            last_connection_date,
-            *stable_tiebreaker,
-        )
-    return readiness, last_connection_date, *stable_tiebreaker
-
-
-def select_best_device(devices, *, hint=None, reason):
-    selected = dict(max(devices, key=lambda device: device_rank(device, hint)))
-    selected["selectionReason"] = reason
-    return selected
-
-
-def select_device(document, name=None, identifier=None, hint=None):
-    selectors = [selector for selector in (name, identifier, hint) if selector]
+def select_device(document, name=None, identifier=None):
+    selectors = [selector for selector in (name, identifier) if selector]
     if len(selectors) > 1:
         raise DeviceResolutionError(
-            "set only one device name, identifier, or hint",
+            "set only one device name or identifier",
+            exit_code=2,
+        )
+    if not selectors:
+        raise DeviceResolutionError(
+            "Codex must choose a listed device and supply its exact identifier",
             exit_code=2,
         )
 
     matches = physical_ios_devices(document)
     if identifier:
         matches = [device for device in matches if device["identifier"] == identifier]
-        if len(matches) == 1:
-            selected = dict(matches[0])
-            selected["selectionReason"] = "stable identifier match"
-            return selected
-    elif name:
+        selection_reason = "stable identifier match"
+    else:
         matches = [device for device in matches if device["name"] == name]
-        if matches:
-            if len(matches) == 1:
-                selected = dict(matches[0])
-                selected["selectionReason"] = f"exact name match for {name!r}"
-                return selected
-            return select_best_device(
-                matches,
-                reason=(
-                    f"best connection readiness among {len(matches)} exact name "
-                    f"matches for {name!r}"
-                ),
-            )
-    elif hint:
-        if matches:
-            return select_best_device(
-                matches,
-                hint=hint,
-                reason=(
-                    f"best name/type match for hint {hint!r}, then connection "
-                    f"readiness and recent CoreDevice activity among "
-                    f"{len(matches)} known devices"
-                ),
-            )
-    elif matches:
-        if len(matches) == 1:
-            selected = dict(matches[0])
-            selected["selectionReason"] = "only known physical iOS device"
-            return selected
-        return select_best_device(
-            matches,
-            reason=(
-                f"automatic best guess by connection readiness and recent "
-                f"CoreDevice activity among {len(matches)} known devices"
-            ),
-        )
+        selection_reason = f"exact name match for {name!r}"
+
+    if len(matches) == 1:
+        selected = dict(matches[0])
+        selected["selectionReason"] = selection_reason
+        return selected
 
     if not matches:
-        selector = name or identifier or hint or "automatic best guess"
+        selector = name or identifier
         raise DeviceResolutionError(
             f"no known physical iOS device matches {selector!r}"
         )
 
-    raise DeviceResolutionError("could not select a physical iOS device")
+    candidates = "\n".join(
+        f"  {device['name']} ({device['identifier']}): "
+        f"{describe_device_connection(device)}"
+        for device in matches
+    )
+    raise DeviceResolutionError(
+        f"multiple physical iOS devices match {name!r}:\n{candidates}",
+        exit_code=2,
+    )
 
 
-def resolve_device(name, identifier, hint):
+def resolve_device(name, identifier):
     try:
-        device = select_device(read_json(), name, identifier, hint)
+        device = select_device(read_json(), name, identifier)
     except DeviceResolutionError as error:
         print(f"error: {error}", file=sys.stderr)
         raise SystemExit(error.exit_code)
     print(json.dumps(device))
 
 
-def list_devices():
+def list_devices(as_json=False):
     devices = physical_ios_devices(read_json())
+    if as_json:
+        print(json.dumps(devices, indent=2))
+        return
     if not devices:
         print("No known physical iOS devices were found.")
         return
@@ -384,8 +296,8 @@ def main():
     device_parser = subparsers.add_parser("resolve-device")
     device_parser.add_argument("--name")
     device_parser.add_argument("--identifier")
-    device_parser.add_argument("--hint")
-    subparsers.add_parser("list-devices")
+    list_parser = subparsers.add_parser("list-devices")
+    list_parser.add_argument("--json", action="store_true")
     subparsers.add_parser("describe-connection")
     subparsers.add_parser("is-connected")
     subparsers.add_parser("can-activate-wirelessly")
@@ -404,9 +316,9 @@ def main():
     elif arguments.command == "app-product":
         app_product()
     elif arguments.command == "resolve-device":
-        resolve_device(arguments.name, arguments.identifier, arguments.hint)
+        resolve_device(arguments.name, arguments.identifier)
     elif arguments.command == "list-devices":
-        list_devices()
+        list_devices(arguments.json)
     elif arguments.command == "describe-connection":
         describe_connection()
     elif arguments.command == "is-connected":

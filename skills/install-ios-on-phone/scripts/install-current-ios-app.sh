@@ -17,13 +17,18 @@ fail() {
 }
 
 usage() {
-  print -- "Usage: $SCRIPT_NAME [--resolve-only] [--save-device-selection] [repository-root]"
+  print -- "Usage: $SCRIPT_NAME [--list-devices | --resolve-only | --save-device-selection] [repository-root]"
 }
 
+list_devices_only=0
 resolve_only=0
 save_device_selection=0
 while (( $# > 0 )); do
   case "$1" in
+    --list-devices)
+      list_devices_only=1
+      shift
+      ;;
     --resolve-only)
       resolve_only=1
       shift
@@ -49,6 +54,8 @@ while (( $# > 0 )); do
   esac
 done
 (( $# <= 1 )) || fail "Expected at most one repository-root argument."
+(( list_devices_only + resolve_only + save_device_selection <= 1 )) \
+  || fail "Set only one of --list-devices, --resolve-only, or --save-device-selection."
 
 repository_root="${1:-$PWD}"
 [[ -d "$repository_root" ]] || fail "Repository directory does not exist: $repository_root"
@@ -88,6 +95,22 @@ config_value() {
 
 [[ -f "$JSON_HELPER" ]] || fail "Missing JSON resolver: $JSON_HELPER"
 command -v python3 >/dev/null 2>&1 || fail "python3 is required to parse Xcode and CoreDevice JSON."
+
+list_core_devices() {
+  xcrun devicectl list devices \
+    --json-output - \
+    --omit-deprecated-fields-in-json \
+    --quiet
+}
+
+if (( list_devices_only == 1 )); then
+  if ! device_listing=$(list_core_devices); then
+    fail "CoreDevice could not enumerate physical iOS devices."
+  fi
+  print -rn -- "$device_listing" | python3 "$JSON_HELPER" list-devices --json
+  exit 0
+fi
+
 validate_config project "$project_config"
 validate_config local "$local_config"
 
@@ -227,21 +250,14 @@ fi
 
 device_name="${IOS_DEVICE_NAME:-}"
 device_identifier="${IOS_DEVICE_IDENTIFIER:-}"
-device_hint="${IOS_DEVICE_HINT:-}"
-device_selector_count=0
-[[ -z "$device_name" ]] || (( device_selector_count += 1 ))
-[[ -z "$device_identifier" ]] || (( device_selector_count += 1 ))
-[[ -z "$device_hint" ]] || (( device_selector_count += 1 ))
-(( device_selector_count <= 1 )) || fail "Set only one of IOS_DEVICE_NAME, IOS_DEVICE_IDENTIFIER, or IOS_DEVICE_HINT."
+[[ -z "$device_name" || -z "$device_identifier" ]] || fail "Set only one of IOS_DEVICE_NAME or IOS_DEVICE_IDENTIFIER."
 device_selection_source=""
 if [[ -n "$device_name" ]]; then
   device_selection_source="IOS_DEVICE_NAME"
 elif [[ -n "$device_identifier" ]]; then
   device_selection_source="IOS_DEVICE_IDENTIFIER"
-elif [[ -n "$device_hint" ]]; then
-  device_selection_source="IOS_DEVICE_HINT"
 fi
-if [[ -z "$device_name" && -z "$device_identifier" && -z "$device_hint" ]]; then
+if [[ -z "$device_name" && -z "$device_identifier" ]]; then
   if [[ -f "$local_config" ]]; then
     device_identifier=$(plutil -extract deviceIdentifier raw -o - -- "$local_config" 2>/dev/null || true)
     if [[ -n "$device_identifier" ]]; then
@@ -258,13 +274,6 @@ fi
 if (( save_device_selection == 1 )) && [[ "$device_selection_source" != "IOS_DEVICE_NAME" ]]; then
   fail "--save-device-selection requires a human-readable IOS_DEVICE_NAME selection."
 fi
-
-list_core_devices() {
-  xcrun devicectl list devices \
-    --json-output - \
-    --omit-deprecated-fields-in-json \
-    --quiet
-}
 
 apply_device_resolution() {
   local preserve_selection_reason="${2:-0}"
@@ -338,10 +347,13 @@ fi
 device_arguments=()
 [[ -z "$device_name" ]] || device_arguments+=(--name "$device_name")
 [[ -z "$device_identifier" ]] || device_arguments+=(--identifier "$device_identifier")
-[[ -z "$device_hint" ]] || device_arguments+=(--hint "$device_hint")
+if (( ${#device_arguments[@]} == 0 )); then
+  print -rn -- "$device_listing" | python3 "$JSON_HELPER" list-devices
+  fail "No device selection is configured. Codex should choose a listed device and rerun with its exact IOS_DEVICE_IDENTIFIER."
+fi
 if ! device_resolution=$(print -rn -- "$device_listing" | python3 "$JSON_HELPER" resolve-device "${device_arguments[@]}"); then
   print -rn -- "$device_listing" | python3 "$JSON_HELPER" list-devices
-  fail "CoreDevice could not choose a usable physical iOS device."
+  fail "The exact device selection did not resolve uniquely. Codex should choose a stable identifier from the listed devices."
 fi
 apply_device_resolution "$device_resolution"
 print -- "Selected device: $device_name ($device_identifier)"

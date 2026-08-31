@@ -1,5 +1,7 @@
 import importlib.util
 import json
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -165,7 +167,7 @@ class DeviceResolutionTests(unittest.TestCase):
         self.assertEqual(selected["identifier"], "SAVED")
         self.assertEqual(selected["selectionReason"], "stable identifier match")
 
-    def test_duplicate_human_readable_names_prefer_connected_device(self):
+    def test_duplicate_human_readable_names_remain_ambiguous(self):
         document = listing(
             device(
                 "OFFLINE",
@@ -176,12 +178,14 @@ class DeviceResolutionTests(unittest.TestCase):
             device("ACTIVE", "iPhone"),
         )
 
-        selected = ios_install_json.select_device(document, name="iPhone")
+        with self.assertRaises(ios_install_json.DeviceResolutionError) as context:
+            ios_install_json.select_device(document, name="iPhone")
 
-        self.assertEqual(selected["identifier"], "ACTIVE")
-        self.assertIn("exact name", selected["selectionReason"])
+        self.assertEqual(context.exception.exit_code, 2)
+        self.assertIn("OFFLINE", str(context.exception))
+        self.assertIn("ACTIVE", str(context.exception))
 
-    def test_first_run_prefers_active_phone_over_offline_devices(self):
+    def test_selection_requires_agent_supplied_exact_device(self):
         document = listing(
             device(
                 "ACTIVE",
@@ -204,36 +208,48 @@ class DeviceResolutionTests(unittest.TestCase):
             ),
         )
 
-        selected = ios_install_json.select_device(document)
+        with self.assertRaises(ios_install_json.DeviceResolutionError) as context:
+            ios_install_json.select_device(document)
 
-        self.assertEqual(selected["identifier"], "ACTIVE")
-        self.assertIn("connection readiness", selected["selectionReason"])
+        self.assertEqual(context.exception.exit_code, 2)
+        self.assertIn("Codex must choose", str(context.exception))
 
-    def test_natural_language_hint_matches_iphone_and_prefers_active_match(self):
+    def test_json_listing_exposes_agent_selection_evidence(self):
         document = listing(
-            device("ACTIVE", "Alan’s iPhone"),
+            device(
+                "ACTIVE",
+                "Alan's iPhone",
+                device_type="iPhone",
+                last_connection_date=20,
+            ),
             device(
                 "DEV",
-                "Alan’s Dev Phone",
+                "Alan's Dev Phone",
                 connection_state="disconnected",
                 transport_type="localNetwork",
+                last_connection_date=30,
             ),
         )
 
-        selected = ios_install_json.select_device(document, hint="Alan's phone")
-
-        self.assertEqual(selected["identifier"], "ACTIVE")
-        self.assertIn("Alan's phone", selected["selectionReason"])
-
-    def test_natural_language_hint_can_select_ipad_over_connected_phone(self):
-        document = listing(
-            device("PHONE", "Alan's iPhone"),
-            device("IPAD", "Alan's iPad", device_type="iPad"),
+        result = subprocess.run(
+            [sys.executable, str(HELPER_PATH), "list-devices", "--json"],
+            input=json.dumps(document),
+            capture_output=True,
+            check=False,
+            text=True,
         )
 
-        selected = ios_install_json.select_device(document, hint="Alan's iPad")
-
-        self.assertEqual(selected["identifier"], "IPAD")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        candidates = json.loads(result.stdout)
+        self.assertEqual(
+            [candidate["identifier"] for candidate in candidates],
+            ["ACTIVE", "DEV"],
+        )
+        self.assertEqual(candidates[0]["deviceType"], "iPhone")
+        self.assertEqual(candidates[0]["connectionState"], "connected")
+        self.assertEqual(candidates[1]["pairingState"], "paired")
+        self.assertEqual(candidates[1]["transportType"], "localNetwork")
+        self.assertEqual(candidates[1]["lastConnectionDate"], 30)
 
     def test_all_known_physical_ios_devices_are_candidates(self):
         document = listing(
